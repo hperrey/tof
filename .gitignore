@@ -1,0 +1,6 @@
+#ignore the data files#
+#######################
+*.txt
+*.h5
+*.png
+/**/*.png
