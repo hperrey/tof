@@ -10,6 +10,23 @@ import csv
 import numpy as np
 import pandas as pd
 
+#seems worse
+def baseliner1(Samples):
+    B=0
+    H =np.histogram(Samples, max(Samples))
+    for i in range(0,5):
+        B+=i*H[0][i]
+    B/=sum(H[0][0:5])
+    return B
+
+#seems better
+def baseliner2(Samples):
+    B=0
+    baseline_sample_range=20
+    for i in range(0,baseline_sample_range):
+        B+=Samples[i]
+    B/=baseline_sample_range
+    return B
 
 logging.basicConfig()
 def load_events(filename):
@@ -25,7 +42,8 @@ def load_events(filename):
             reader = csv.reader(f)
             n=0#row number
             N=0#event number
-            dt=1#nanosecond
+            #dt=1#nanosecond
+            B=[0]*int(Nlines/8)
             for row in reader:
                 if n%10000==0:
                     print('row number ', n,'/',Nlines)
@@ -39,12 +57,18 @@ def load_events(filename):
                 if n%8==0:#every eigth row is the data
                     log.debug('loading the data')
                     dummy = row[0].split()
-                    dummy=[int(i) for i in dummy]#should I specify datatype here.
-                    samples[N]=np.array(dummy ,dtype='float64')#include ,dtype='int16' for five times smaller dataframe, but five times slower program.
-              
-        #save to dataframe         
+                    dummy=[int(i) for i in dummy]
+                    samples[N]=np.array(dummy ,dtype='float64')
+                    B[N]=baseliner2(samples[N])
+                    samples[N]-=B[N]
+                    peak_index = np.argmax(abs(samples[N]))
+                    #check the polarity
+                    if samples[N][peak_index] < 0:
+                        samples[N]*=-1
+
+        #save to dataframe
         log.debug('done reading data, saving to dataframe')            
-        Frame=pd.DataFrame({'TimeStamp': time, 'Samples' : samples})
+        Frame=pd.DataFrame({'TimeStamp': time, 'Samples' : samples, 'Baseline':B})
         log.debug('dataframe created')
     except IOError:
         log.error('failed to read file')
