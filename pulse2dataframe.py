@@ -1,5 +1,5 @@
 import Reader as rdr
-import crosser as crs
+import cfd
 import pandas as pd
 import time
 
@@ -14,8 +14,8 @@ def pulse2frame(filename):
     for n in range(0,len(A)):
         if n%1000==0:
             print('Event', n, '/', len(A))
-        invSignalLeft,invSignalRight = crs.inv(A.Samples[n])
-        LeftCross[n], RightCross[n] = crs.zerocrosser(invSignalLeft,invSignalRight)
+        invSignalLeft,invSignalRight = cfd.inv(A.Samples[n])
+        LeftCross[n], RightCross[n] = cfd.zerocrosser(invSignalLeft,invSignalRight)
         Frame=pd.DataFrame({'TimeStamp': A.TimeStamp,
                             'Samples' : A.Samples,
                             'Baseline' : A.Baseline,
