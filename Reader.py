@@ -13,7 +13,7 @@ import pandas as pd
 #seems worse
 def baseliner1(Samples):
     B=0
-    H =np.histogram(Samples, max(Samples))
+    H =np.histogram(Samples, int(max(Samples)))
     for i in range(0,5):
         B+=i*H[0][i]
     B/=sum(H[0][0:5])
@@ -23,9 +23,7 @@ def baseliner1(Samples):
 def baseliner2(Samples):
     B=0
     baseline_sample_range=20
-    for i in range(0,baseline_sample_range):
-        B+=Samples[i]
-    B/=baseline_sample_range
+    B=sum(Samples[0:baseline_sample_range])/baseline_sample_range
     return B
 
 logging.basicConfig()
