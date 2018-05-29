@@ -2,45 +2,43 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pylab import figure, cm
 from matplotlib.colors import LogNorm
+import matplotlib.colors as colors
 
 def get_map(frame):
     #Map=[[0]*300 for i in range(0,1029)]
-    uplim=400
-    Map=np.zeros((100,uplim))
+    uplim=1000
+    windowlength=270#240
+    heatMap=np.zeros((windowlength,uplim))
     for n in range(0, len(frame)):
         crossing=frame.Crossing[n]
         if n%1000==0:
             print('n = ',n,'/',len(frame))
-        for i in range(0,100):# len(frame.Samples[n])):
+        for i in range(0,windowlength):# len(frame.Samples[n])):
             #print('i = ',i)
             if i+crossing<1029:
-                if frame.Samples[n][i+crossing-30]<uplim:
-                    Map[i][int(frame.Samples[n][i+crossing-30])]+=1
+                if frame.Samples[n][i+crossing-50]<uplim:
+                    heatMap[i][int(frame.Samples[n][i+crossing-40])]+=1
 
     #Map=np.flipud(Map)
-    Map=np.rot90(Map, k=-1, axes=(0,1))
-    Map=np.fliplr(Map)
-    #Map=Map[350:650][0:500]
-    #plt.imshow(Map[1:200],cmap='gnuplot', interpolation='nearest',origin = 'lower')
-    #plt.plot(events.Samples[30][events.Crossing[30]-30:events.Crossing[30]+70])
-    #plt.plot(events.Samples[550][events.Crossing[550]-30:events.Crossing[550]+70])
-    #plt.plot(events.Samples[666][events.Crossing[666]-30:events.Crossing[666]+70])
-    #plt.plot(events.Samples[74000][events.Crossing[74000]-30:events.Crossing[74000]+70])
-    #plt.plot(events.Samples[3003][events.Crossing[3003]-30:events.Crossing[3003]+70])
-    #plt.xlabel('Time ns')
-    #plt.ylabel('ADC value')
-    #clb = plt.colorbar()
-    #clb.ax.set_title('Counts')
-    #plt.show()
+    heatMap=np.rot90(heatMap, k=-1, axes=(0,1))
+    heatMap=np.fliplr(heatMap)
+    #We want all the zero valued bins to be depicted as black. It is easier to look at.
+    #heat map with Zeroes boosted to 0.01
+    heatmapZboost=heatMap[:][:]
+    for u in range(0,uplim):
+        #print('u = ', u)
+        for y in range(0,windowlength):
+            #print('y = ', y)
+            if heatmapZboost[u][y] < 1:
+                heatmapZboost[u][y] = 0.01
 
+    plt.imshow(heatmapZboost[1:uplim],cmap='gnuplot', norm=LogNorm(vmin=0.01, vmax=15000), interpolation='nearest',origin = 'lower')
+    for i in range(50,70):
+        plt.plot(frame.Samples[i][frame.Crossing[i]-40:frame.Crossing[i]+windowlength-40])
+    plt.xlabel('Time ns')
+    plt.ylabel('ADC value')
+    clb = plt.colorbar()
+    clb.ax.set_title('Counts')
+    plt.show()
 
-    f = figure(figsize=(6.2,5.6))
-    ax = f.add_axes([0.17, 0.02, 0.72, 0.79])
-    axcolor = f.add_axes([0.90, 0.02, 0.03, 0.79])
-    im = ax.matshow(Map,cmap='gnuplot', norm=LogNorm(vmin=0.01, vmax=15000),origin = 'lower')
-    t = [0.01, 0.1, 1, 10, 100, 1000, 10000]
-    f.colorbar(im, cax=axcolor, ticks=t, format='$%.2f$')
-    f.show()
-
-
-    return Map
+    return heatMap, heatmapZboost
