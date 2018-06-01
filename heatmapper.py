@@ -4,20 +4,22 @@ from pylab import figure, cm
 from matplotlib.colors import LogNorm
 import matplotlib.colors as colors
 
-def get_map(frame):
-    #Map=[[0]*300 for i in range(0,1029)]
-    uplim=1000
-    windowlength=270#240
+def get_map(frame, lowlim=0, uplim=1000,frac=1):
+    windowlength=270
+    leftside=50#how many nanoseconds are on the left side?
     heatMap=np.zeros((windowlength,uplim))
-    for n in range(0, len(frame)):
+    nFrames=int(len(frame)*frac)
+    for n in range(0, nFrames):
         crossing=frame.Crossing[n]
-        if n%1000==0:
-            print('n = ',n,'/',len(frame))
+        if n%100==0:
+            print('n = ',n,'/',nFrames)
         for i in range(0,windowlength):# len(frame.Samples[n])):
             #print('i = ',i)
-            if i+crossing<1029:
-                if frame.Samples[n][i+crossing-50]<uplim:
-                    heatMap[i][int(frame.Samples[n][i+crossing-40])]+=1
+            if i+crossing-leftside<1029:
+                if max(frame.Samples[n])<lowlim or max(frame.Samples[n]>uplim):
+                    continue
+                else:#frame.Samples[n][i+crossing-leftside]<uplim:
+                    heatMap[i][int(frame.Samples[n][i+crossing-leftside])]+=1
 
     #Map=np.flipud(Map)
     heatMap=np.rot90(heatMap, k=-1, axes=(0,1))
@@ -33,8 +35,8 @@ def get_map(frame):
                 heatmapZboost[u][y] = 0.01
 
     plt.imshow(heatmapZboost[1:uplim],cmap='gnuplot', norm=LogNorm(vmin=0.01, vmax=15000), interpolation='nearest',origin = 'lower')
-    for i in range(50,70):
-        plt.plot(frame.Samples[i][frame.Crossing[i]-40:frame.Crossing[i]+windowlength-40])
+    #for i in range(50,70):
+    #    plt.plot(frame.Samples[i][frame.Crossing[i]-40:frame.Crossing[i]+windowlength-40])
     plt.xlabel('Time ns')
     plt.ylabel('ADC value')
     clb = plt.colorbar()

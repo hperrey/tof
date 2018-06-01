@@ -4,8 +4,8 @@ import numpy as np
 def inv(Samples):
     #B=bl.baseliner2(Samples)
     #Samples=Samples-B
-    shift=10
-    frac=0.60
+    shift=3
+    frac=0.40
     invsig=np.zeros(len(Samples))
     invsig[0:-shift]=-frac*Samples[shift:]
     #invLead=np.zeros(len(Samples))
