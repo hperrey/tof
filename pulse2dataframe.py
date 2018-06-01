@@ -25,7 +25,7 @@ def pulse2frame(filename):
             if A.Samples[n][u]<1:
                 lzcross[n]=u
                 break
-        for y in range(crossing[n],len(A.Samples[n])):
+        for y in range(crossing[n]+1,len(A.Samples[n])):
             if A.Samples[n][y]<1:
                 rzcross[n]=y
                 break
