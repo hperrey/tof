@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pylab import figure, cm
 from matplotlib.colors import LogNorm
-import matplotlib.colors as colors
 
 def get_map(frame, lowlim=0, uplim=1000,frac=1):
     windowlength=270
@@ -34,7 +32,7 @@ def get_map(frame, lowlim=0, uplim=1000,frac=1):
             if heatmapZboost[u][y] < 1:
                 heatmapZboost[u][y] = 0.01
 
-    plt.imshow(heatmapZboost[1:uplim],cmap='gnuplot', norm=LogNorm(vmin=0.01, vmax=15000), interpolation='nearest',origin = 'lower')
+    plt.imshow(heatmapZboost[1:uplim],cmap='gnuplot',aspect='auto', norm=LogNorm(vmin=0.01, vmax=15000), interpolation='nearest',origin = 'lower')
     #for i in range(50,70):
     #    plt.plot(frame.Samples[i][frame.Crossing[i]-40:frame.Crossing[i]+windowlength-40])
     plt.xlabel('Time ns')

@@ -20,7 +20,9 @@ def pulse2frame(filename):
         if n%1000==0:
             print('Event', n, '/', len(A))
         invsig = cfd.inv(A.Samples[n])
-        crossing[n] = cfd.zerocrosser(invsig)
+        #crossing[n] = cfd.crosser1(invsig)
+        #crossing[n] = cfd.crosser2(invsig, A.Samples[n])
+        crossing[n] = cfd.shifter(A.Samples[n])
         for u in range(crossing[n]-1,-1,-1):
             if A.Samples[n][u]<1:
                 lzcross[n]=u
