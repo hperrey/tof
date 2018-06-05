@@ -18,6 +18,7 @@ def get_map(frame, lowlim=0, uplim=1000,frac=1):
                     continue
                 else:#frame.Samples[n][i+crossing-leftside]<uplim:
                     heatMap[i][int(frame.Samples[n][i+crossing-leftside])]+=1
+                    #heatMap[i][int(frame.Samples[n][i+350])]+=1
 
     #Map=np.flipud(Map)
     heatMap=np.rot90(heatMap, k=-1, axes=(0,1))
@@ -35,10 +36,12 @@ def get_map(frame, lowlim=0, uplim=1000,frac=1):
     plt.imshow(heatmapZboost[1:uplim],cmap='gnuplot',aspect='auto', norm=LogNorm(vmin=0.01, vmax=15000), interpolation='nearest',origin = 'lower')
     #for i in range(50,70):
     #    plt.plot(frame.Samples[i][frame.Crossing[i]-40:frame.Crossing[i]+windowlength-40])
+   
     plt.xlabel('Time ns')
     plt.ylabel('ADC value')
     clb = plt.colorbar()
     clb.ax.set_title('Counts')
+    plt.axvline(50)
     plt.show()
 
     return heatMap, heatmapZboost

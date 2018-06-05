@@ -27,7 +27,8 @@ def shifter(Samples):
     peak=max(Samples)
     for i in range(0,len(Samples)):
         frac=0.5
-        if Samples[i]>frac*peak:
+        #frac=1
+        if Samples[i]>=frac*peak:
             crossing=i
             break
     return crossing

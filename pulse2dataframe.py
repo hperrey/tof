@@ -12,14 +12,15 @@ def pulse2frame(filename):
     #LeftCross=[0]*len(A)
     #RightCross=[0]*len(A)
     #invsig=0
-
+    nTimeResets=0
+    tstamp=[0]*len(A)
     crossing=[0]*len(A)
     lzcross=[0]*len(A)
     rzcross=[0]*len(A)
     for n in range(0,len(A)):
         if n%1000==0:
             print('Event', n, '/', len(A))
-        invsig = cfd.inv(A.Samples[n])
+        #invsig = cfd.inv(A.Samples[n])
         #crossing[n] = cfd.crosser1(invsig)
         #crossing[n] = cfd.crosser2(invsig, A.Samples[n])
         crossing[n] = cfd.shifter(A.Samples[n])
@@ -31,14 +32,17 @@ def pulse2frame(filename):
             if A.Samples[n][y]<1:
                 rzcross[n]=y
                 break
+        if n>0:
+            if A.TimeStamp[n]<A.TimeStamp[n-1]:
+                nTimeResets+=1
+        tstamp[n]=A.TimeStamp[n]+nTimeResets*2147483647+crossing[n]
 
-
-        Frame=pd.DataFrame({'TimeStamp': A.TimeStamp,
-                            'Samples' : A.Samples,
-                            'Baseline' : A.Baseline,
-                            'Crossing':crossing,
-                            'Left':lzcross,
-                            'Right': rzcross})
+    Frame=pd.DataFrame({'TimeStamp': tstamp,
+                        'Samples' : A.Samples,
+                        'Baseline' : A.Baseline,
+                        'Crossing':crossing,
+                        'Left':lzcross,
+                        'Right': rzcross})
     tstop=time.time()
     print('processing time = ',tstop-tstart)
     return Frame
