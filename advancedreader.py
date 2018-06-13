@@ -24,8 +24,10 @@ def processframe(frame):
         if n>0:
             if frame.TimeStamp[n]<frame.TimeStamp[n-1]:
                 nTimeResets+=1
-        #Callibrate to nanoseconds needed!!!!!
-        tstamp[n]=frame.TimeStamp[n]+nTimeResets*2147483647
+        #Callibration to nanoseconds needed!
+        #timestamp meas in clock cycles. clock freq = 0.125GHz
+        #from clock cycle to ns. example: 80 ticks/8ticks/ns=10ns
+        tstamp[n]=(frame.TimeStamp[n]+nTimeResets*2147483647)/8
 
         #Check if the event passes the threshold. This is
         #to sort out empty and also tiny events.
@@ -48,11 +50,11 @@ def processframe(frame):
   
     #Create the expanded dataframe.
     Frame=pd.DataFrame({'Timestamp': tstamp,
-                        'Samples' : frame.Samples,
-                        'Baseline' : frame.Baseline,
+                        #'Samples' : frame.Samples,
+                        #'Baseline' : frame.Baseline,
                         'Refpoint':refpoint,
-                        'Left':lzcross,
-                        'Right': rzcross,
+                        #'Left':lzcross,
+                        #'Right': rzcross,
                         'Noevent': noevent})
 
     #stop timing and print the runtime
