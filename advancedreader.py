@@ -31,7 +31,7 @@ def processframe(frame):
 
         #Check if the event passes the threshold. This is
         #to sort out empty and also tiny events.
-        if max(frame.Samples[n])<30:
+        if max(frame.Samples[n])<10:
             noevent[n]=True
             continue
         #For the remaining events (noevent=False) we
