@@ -1,10 +1,9 @@
-import time
 import pandas as pd
 import cfd
+import sys
+
 
 def processframe(frame):
-    #Start the timer
-    tstart=time.time()
     #Initiate the time reset counter.
     nTimeResets=0
     #Initiate the columns of the advanced frame
@@ -17,8 +16,9 @@ def processframe(frame):
 
     #Loop through all the events
     for n in range(0,len(frame)):
-        if n%1000==0:
-            print('Event', n, '/', len(frame))
+        k=100*n/(len(frame))+1
+        sys.stdout.write("\rGenerating more processed dataframe %d%%" % k)
+        sys.stdout.flush()
         #For every event after the first check if the time
         #has been reset. And keep count of the resets.
         if n>0:
@@ -57,8 +57,6 @@ def processframe(frame):
                         #'Right': rzcross,
                         'Noevent': noevent})
 
-    #stop timing and print the runtime
-    tstop=time.time()
-    print('processing time = ',tstop-tstart)
+
     return Frame
 
