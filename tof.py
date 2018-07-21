@@ -1,4 +1,4 @@
-import rdrdois as rdr
+import reader as rdr
 import advancedreader as adv
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -10,8 +10,6 @@ import time
 tstart=time.time()
 #neutron=pd.read_hdf('N_tres25_2018-07-14.hdf')
 #gamma=pd.read_hdf('G_tres100_2018-07-14.hdf')
-neutron=pd.read_hdf('Neutron25.hdf')
-gamma=pd.read_hdf('Gamma25.hdf')
 Ntreshold=25
 Gtreshold=25
 print('Neutron channel')
