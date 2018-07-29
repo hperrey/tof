@@ -6,8 +6,8 @@ import sys
 import numpy as np
 import time
 
-mode = 0 #pandas
-#mode = 1 #txt
+#mode = 0 #pandas
+mode = 1 #txt
 tstart = time.time()
 
 if mode == 0:
@@ -17,21 +17,23 @@ elif mode == 1:
     Nthreshold = 10
     Gthreshold = 10
     print('Neutron channel')
-    simpleNeutron = rdr.load_events('data/2018-07-27/4minutes2018-07-27-N10-G10ch0.txt', Nthreshold)
+    simpleNeutron = rdr.load_events('testneutron.txt', Nthreshold)
     neutron = adv.processframe(simpleNeutron)
     neutron.to_hdf('data/2018-07-27/N%d.hdf' %Nthreshold,'A')
     #recover memory
-    simpleNeutron = None
+    #simpleNeutron = None
     print('\nGamma channel')
-    simpleGamma = rdr.load_events('data/2018-07-27/4minutes2018-07-27-N10-G10ch1.txt', Gthreshold)
+    simpleGamma = rdr.load_events('testgamma.txt', Gthreshold)
     gamma = adv.processframe(simpleGamma)
     gamma.to_hdf('data/2018-07-27/G%d.hdf' %Gthreshold,'A')
     #recover memory
-    simpleGamma = None
+    #simpleGamma = None
 print('\nFrames have been loaded')
 
 
-
+peak_0 = []
+peak_gamma = []
+peak_neutron = []
 
 tol = 100
 fac = 16
@@ -45,7 +47,13 @@ for ne in range(0, len(neutron)):
             ymin=y
         if -tol < Delta <tol:
             Thist[0][tol+int(Delta)]+=1
-        elif Delta<-tol:
+            if 1 < Delta < 4:
+                peak_0.append([ne, y])
+            elif 12 < Delta < 17:
+                peak_gamma.append([ne, y])
+            elif 40 < Delta < 46:
+                peak_neutron.append([ne, y])
+        elif Delta<-tol: 
             break
     i = 100*ne/len(neutron)+1
     #if ne%100==0:
