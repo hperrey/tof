@@ -10,9 +10,9 @@ def processframe(frame):
     #(those which are not directly inherited from the simple frame)
     tstamp=[0]*len(frame)
     refpoint=[0]*len(frame)
-    noevent=[False]*len(frame)
-    lzcross=[0]*len(frame)
-    rzcross=[0]*len(frame)
+    #noevent=[False]*len(frame)
+    #lzcross=[0]*len(frame)
+    #rzcross=[0]*len(frame)
 
     #Loop through all the events
     for n in range(0,len(frame)):
@@ -27,7 +27,7 @@ def processframe(frame):
         #Callibration to nanoseconds needed!
         #timestamp meas in clock cycles. clock freq = 0.125GHz
         #from clock cycle to ns. example: 80 ticks/8ticks/ns=10ns
-        tstamp[n]=(frame.TimeStamp[n]+nTimeResets*2147483647)/8
+        tstamp[n]=(frame.TimeStamp[n]+nTimeResets*2147483647)
 
         #Check if the event passes the threshold. This is
         #to sort out empty and also tiny events.
@@ -39,14 +39,14 @@ def processframe(frame):
         else:
             refpoint[n] = cfd.shifter(frame.Samples[n])
             #And then we walk left and right to the zerocrossings.
-            for u in range(refpoint[n]-1,-1,-1):
-                if frame.Samples[n][u]<1:
-                    lzcross[n]=u
-                    break
-            for y in range(refpoint[n]+1,len(frame.Samples[n])):
-                if frame.Samples[n][y]<1:
-                    rzcross[n]=y
-                    break
+            # for u in range(refpoint[n]-1,-1,-1):
+            #     if frame.Samples[n][u]<1:
+            #         lzcross[n]=u
+            #         break
+            # for y in range(refpoint[n]+1,len(frame.Samples[n])):
+            #     if frame.Samples[n][y]<1:
+            #         rzcross[n]=y
+            #         break
   
     #Create the expanded dataframe.
     Frame=pd.DataFrame({'Timestamp': tstamp,
@@ -55,7 +55,8 @@ def processframe(frame):
                         'Refpoint':refpoint,
                         #'Left':lzcross,
                         #'Right': rzcross,
-                        'Noevent': noevent})
+                        #'Noevent': noevent})
+    })
 
 
     return Frame
