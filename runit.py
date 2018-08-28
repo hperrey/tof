@@ -6,16 +6,17 @@ t0 = time.time()
 
 #ne213 channel
 print("neutron")
-b_ne213=tof.basic_framer('testneutron.txt', 10)
+b_ne213=tof.basic_framer('4minutes2018-07-27-N10-G10ch0.txt', 10)
 adv_ne213=tof.adv_framer(b_ne213)
-#b_ne213 = None
+b_ne213 = None
 t1 = time.time()
 print('\nne213: ', t1-t0)
+
 #yap channel
 print("yap")
-b_yap=tof.basic_framer('testgamma.txt', 25)
+b_yap=tof.basic_framer('4minutes2018-07-27-N10-G10ch1.txt', 25)
 adv_yap=tof.adv_framer(b_yap)
-#b_yap = None
+b_yap = None
 t2 = time.time()
 print('\nyap: ', t2-t1)
 
