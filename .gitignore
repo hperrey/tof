@@ -6,3 +6,4 @@
 *.hdf5
 *.png
 /**/*.png
+*.npy
