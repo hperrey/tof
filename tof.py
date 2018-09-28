@@ -10,7 +10,7 @@ def basic_framer(filename, threshold, frac=0.5):
     nTimeResets = 0
     samples = [None]*nevents
     timestamp = np.array([0]*nevents, dtype=np.int64)
-    refpoint = np.array([0]*nevents, dtype=np.int16)
+    refpoint = np.array([0]*nevents, dtype=np.int32)
     left = np.array([0]*nevents, dtype=np.int16)
     right = np.array([0]*nevents, dtype=np.int16)
     peak_index = np.array([0]*nevents, dtype=np.int16)
@@ -90,12 +90,15 @@ def basic_framer(filename, threshold, frac=0.5):
 
 def cfd(samples, frac):
     peak = np.max(samples)
-    refpoint = 0
+    index=0
     for i in range(0,len(samples)):
-        if samples[i]>= frac*peak:
-            refpoint = i
+        if samples[i] > frac*peak:
+            index = i
             break
-    return refpoint
+    slope = (samples[index] - samples[index-1])#divided by 1ns
+    tfine = 1000*(index-1) + int(round(1000*(peak*frac-samples[index-1])/slope))
+    return tfine
+
 
 def find_edges(samples, refpoint):
     edges = [0,0]
@@ -148,11 +151,11 @@ def find_edges(samples, refpoint):
 #                              'area' : area,
 #                              'short' : short})
 
-def tof_spectrum(ne213, yap, fac=8, tolerance = 100):
+def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=80):
     ymin=0
-    tof_hist = np.histogram([], 2*tolerance, range=(-tolerance, tolerance))
-    tof_hist1 = np.histogram([], 2*tolerance, range=(-tolerance, tolerance))
-    tof_hist2 = np.histogram([], 2*tolerance, range=(-tolerance, tolerance))
+    tof_hist = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
+    #tof_hist1 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
+    #tof_hist2 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
 
     #for ne in range(0, len(ne213)):
     counter=0
@@ -163,12 +166,12 @@ def tof_spectrum(ne213, yap, fac=8, tolerance = 100):
         sys.stdout.write("\rGenerating tof spectrum %d%%" % k)
         sys.stdout.flush()
         for y in range(ymin, len(yap)):
-            Delta=(fac*ne213.timestamp[ne]+ne213.refpoint[ne])-(fac*yap.timestamp[y]+yap.refpoint[y])
-            if Delta > tolerance:
+            Delta=int(round(((fac*1000*ne213.timestamp[ne]+ne213.refpoint[ne])-(fac*1000*yap.timestamp[y]+yap.refpoint[y]))/1000))
+            if Delta > tol_right:
                 ymin = y
-            if -tolerance < Delta <tolerance:
-                tof_hist[0][tolerance+int(Delta)] += 1
-            elif Delta < -tolerance:
+            if tol_left < Delta <tol_right:
+                tof_hist[0][tol_left+int(Delta)] += 1
+            elif Delta < -tol_right:
                 break
     return tof_hist
 
