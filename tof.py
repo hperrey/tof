@@ -2,14 +2,19 @@ import numpy as np
 import pandas as pd
 import csv
 import sys
+from itertools import islice
 
-def basic_framer(filename, threshold, frac=0.5):
+
+def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, T0=0):
+    print(nlines)
+    print(startline)
     #Get number of lines
-    nlines=sum(1 for line in (open(filename)))
+    if nlines == 0:
+        nlines=sum(1 for line in (open(filename)))
     nevents = int(nlines/8)
-    nTimeResets = 0
     samples = [None]*nevents
-    timestamp = np.array([0]*nevents, dtype=np.int64)
+    nTimeResets=0
+    timestamp = np.array([T0]*nevents, dtype=np.int64)
     refpoint = np.array([0]*nevents, dtype=np.int32)
     left = np.array([0]*nevents, dtype=np.int16)
     right = np.array([0]*nevents, dtype=np.int16)
@@ -22,19 +27,31 @@ def basic_framer(filename, threshold, frac=0.5):
     try:
         with open(filename, newline='\n') as f:
             reader = csv.reader(f)
-            line_index = 0
+            line_index = startline
             event_index = 0
+            idx=0
+            if line_index > 0:
+                for row in reader:
+                    if idx == startline-1:
+                        break
+                    else:
+                        idx+=1
+
+            #go to the startline
             for row in reader:
                 line_index +=1
+                #only go through lines belonging to the current block
+                if line_index >= startline+nlines:
+                    break
                 if line_index%8 == 6:
-                    k = 100*line_index/nlines+1
+                    k = 100*(line_index-startline)/nlines+1
                     sys.stdout.write("\rGenerating dataframe %d%%" % k)
                     sys.stdout.flush()
                     dummytimestamp = int(row[0].split()[3])
                     if event_index > 0:
                         if dummytimestamp<timestamp[event_index-1]-nTimeResets*2147483647:
                             nTimeResets += 1
-                    timestamp[event_index]=(dummytimestamp+nTimeResets*2147483647)
+                    timestamp[event_index]+=(dummytimestamp+nTimeResets*2147483647)
                 if line_index%8 == 0:#every eigth row is the data
                     dummy = row[0].split()
                     dummy=[int(i) for i in dummy]
@@ -61,6 +78,8 @@ def basic_framer(filename, threshold, frac=0.5):
                         if edges[event_index][0] < edges[event_index][1]:
                             area[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][1]])
                             refpoint[event_index] = cfd(samples[event_index], frac)
+                            if refpoint[event_index] == -1:
+                                continue
                             sg = int((edges[event_index][1]-edges[event_index][0])*0.7)
                             lg = int((edges[event_index][1]-edges[event_index][0])*0.9)
                             #shortgate[event_index] = np.trapz(samples[event_index][refpoint[event_index]-5:refpoint[event_index]+sg])
@@ -107,9 +126,11 @@ def cfd(samples, frac):
     if slope == 0:
         np.save('array',samples)
         print('\nslope == 0!!!!')
-        #print('\nindex=', index)
+        print('\nindex=', index)
         print('\n', samples[index-5:index+5])
-    tfine = 1000*(index-1) + int(round(1000*(peak*frac-samples[index-1])/slope))
+        tfine = -1
+    else:
+        tfine = 1000*(index-1) + int(round(1000*(peak*frac-samples[index-1])/slope))
     return tfine
 
 
@@ -124,6 +145,25 @@ def find_edges(samples, refpoint):
             edges[1]=i
             break
     return edges
+
+def get_frames(filename, threshold, frac=0.5):
+    nlines=sum(1 for line in (open(filename)))
+    nlinesBlock = 2**20 #1048576 lines per block
+    #Number of full blocks
+    nBlocks = int(nlines/nlinesBlock)
+    #Number of lines in the final block
+    nlinesBlockF = (nlines%nlinesBlock)
+    Blocklines =[nlinesBlock]*(nBlocks+1)
+    Blocklines[-1] = nlinesBlockF
+    #we need nBlocks +1 dataframes
+    FrameList=[0]*len(Blocklines)
+    T0=0
+    for i in range(0, len(Blocklines)):
+        if i>0:
+            T0=FrameList[i-1].timestamp[len(FrameList[i-1])-1]
+        print('\n -------------------- \n frame', i+1, '/', len(FrameList), '\n --------------------')
+        FrameList[i] = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock, T0=T0)
+    return FrameList
 
 
 
