@@ -28,7 +28,7 @@ def basic_framer(filename, threshold, frac=0.5):
                 line_index +=1
                 if line_index%8 == 6:
                     k = 100*line_index/nlines+1
-                    sys.stdout.write("\rGenerating basic dataframe %d%%" % k)
+                    sys.stdout.write("\rGenerating dataframe %d%%" % k)
                     sys.stdout.flush()
                     dummytimestamp = int(row[0].split()[3])
                     if event_index > 0:
@@ -39,10 +39,16 @@ def basic_framer(filename, threshold, frac=0.5):
                     dummy = row[0].split()
                     dummy=[int(i) for i in dummy]
                     samples[event_index] = np.array(dummy ,dtype=np.int16)
-                    samples[event_index] -= int(sum(samples[event_index][0:20])/20)
+                    #B is the number of samples used to calculate baseline
+                    #We don't care about events that have large peaks or noise in this interval
+                    B = 20
+                    baseline = int(sum(samples[event_index][0:B])/B)
+                    samples[event_index] -= baseline
                     #check the polarity and check if the pulse crosses threshold
                     peak_index[event_index] = np.argmax(np.absolute(samples[event_index]))
-                    if np.absolute(samples[event_index][peak_index[event_index]]) >= threshold:
+                    if np.absolute(samples[event_index][peak_index[event_index]]) < threshold:
+                        continue
+                    elif np.absolute(samples[event_index][peak_index[event_index]]) >= threshold:
                         if samples[event_index][peak_index[event_index]] < 0:
                             samples[event_index] *= -1
                         #get pulse height and pulse edge bins
@@ -86,16 +92,23 @@ def basic_framer(filename, threshold, frac=0.5):
                          'longgate' : longgate,
                          'refpoint' : refpoint,
                          'left' : left,
-                        'right' : right})
+                         'right' : right})
 
 def cfd(samples, frac):
     peak = np.max(samples)
-    index=0
+    index = 0
     for i in range(0,len(samples)):
         if samples[i] > frac*peak:
             index = i
             break
+        else:
+            index = 0
     slope = (samples[index] - samples[index-1])#divided by 1ns
+    if slope == 0:
+        np.save('array',samples)
+        print('\nslope == 0!!!!')
+        #print('\nindex=', index)
+        print('\n', samples[index-5:index+5])
     tfine = 1000*(index-1) + int(round(1000*(peak*frac-samples[index-1])/slope))
     return tfine
 
@@ -112,44 +125,7 @@ def find_edges(samples, refpoint):
             break
     return edges
 
-# def adv_framer(frame, cfd_frac=0.5, keep_samples = False):
-#     nTimeResets = 0
-#     timestamp = np.array([0]*len(frame), dtype=np.int64)
-#     area  = np.array([0]*len(frame), dtype=np.int16)
-#     short = np.array([0]*len(frame), dtype=np.int16)
-#     refpoint = np.array([0]*len(frame), dtype=np.int16)
-#     edges = [None]*len(frame)
 
-#     for n in range(0,len(frame)):
-#         k=100*n/(len(frame))+1
-#         sys.stdout.write("\rGenerating more processed dataframe %d%%" % k)
-#         sys.stdout.flush()
-#         if n>0:
-#             if frame.timestamp[n]<frame.timestamp[n-1]:
-#                 nTimeResets += 1
-#         timestamp[n]=(frame.timestamp[n]+nTimeResets*2147483647)
-#         refpoint[n] = cfd(frame.samples[n], cfd_frac)
-#         edges[n] = find_edges(frame.samples[n], refpoint[n])
-#         area[n] = np.trapz(frame.samples[n][edges[n][0]:edges[n][1]])
-#         #sg=int((edges[n][1]-edges[n][0])*0.95)
-#         sg=7
-#         if frame.samples[n][edges[n][0]]+sg<len(frame.samples[n]):
-#             short[n] = np.trapz(frame.samples[n][edges[n][0]:edges[n][0]+sg])
-#     if keep_samples == True:
-#         return pd.DataFrame({'timestamp' : timestamp,
-#                              'refpoint' : refpoint,
-#                              'samples' : frame.samples,
-#                              'height' : frame.height,
-#                              'edges' : edges,
-#                              'area' : area,
-#                              'short' : short})
-#     elif keep_samples == False:
-#         return pd.DataFrame({'timestamp' : timestamp,
-#                              'refpoint' : refpoint,
-#                              'height' : frame.height,
-#                              'edges' : edges,
-#                              'area' : area,
-#                              'short' : short})
 
 def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=80):
     ymin=0
