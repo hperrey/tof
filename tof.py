@@ -4,11 +4,10 @@ import csv
 import sys
 from itertools import islice
 import time
+import matplotlib.pyplot as plt
 
 
 def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeResets=0):
-    #print(nlines)
-    #print(startline)
     #Get number of lines
     if nlines == 0:
         nlines=sum(1 for line in (open(filename)))
@@ -22,8 +21,8 @@ def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeRese
     peak_index = np.array([0]*nevents, dtype=np.int16)
     height = np.array([0]*nevents, dtype=np.int16)
     area = np.array([0]*nevents, dtype=np.int16)
-    shortgate = np.array([0]*nevents, dtype=np.int16)
-    longgate = np.array([0]*nevents, dtype=np.int16)
+    #shortgate = np.array([0]*nevents, dtype=np.int16)
+    #longgate = np.array([0]*nevents, dtype=np.int16)
     edges = [None]*nevents
     try:
         with open(filename, newline='\n') as f:
@@ -82,12 +81,12 @@ def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeRese
                             refpoint[event_index] = cfd(samples[event_index], frac)
                             if refpoint[event_index] == -1:
                                 continue
-                            sg = int((edges[event_index][1]-edges[event_index][0])*0.7)
-                            lg = int((edges[event_index][1]-edges[event_index][0])*0.9)
+                            #sg = int((edges[event_index][1]-edges[event_index][0])*0.7)
+                            #lg = int((edges[event_index][1]-edges[event_index][0])*0.9)
                             #shortgate[event_index] = np.trapz(samples[event_index][refpoint[event_index]-5:refpoint[event_index]+sg])
-                            shortgate[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][0]+sg])
+                            #shortgate[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][0]+sg])
                             #longgate[event_index] = np.trapz(samples[event_index][refpoint[event_index]-5:refpoint[event_index]+lg])
-                            longgate[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][0]+lg])
+                            #longgate[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][0]+lg])
                             event_index += 1
         #throw away empty rows.
         samples = samples[0:event_index]
@@ -96,8 +95,8 @@ def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeRese
         peak_index = peak_index[0:event_index]
         edges = edges[0:event_index]
         area = area[0:event_index]
-        shortgate = shortgate[0:event_index]
-        longgate = longgate[0:event_index]
+        #shortgate = shortgate[0:event_index]
+        #longgate = longgate[0:event_index]
         refpoint = refpoint[0:event_index]
         left = left[0:event_index]
         right = right[0:event_index]
@@ -109,11 +108,42 @@ def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeRese
                          'peak_index':peak_index,
                          'edges' : edges,
                          'area' : area,
-                         'shortgate' : shortgate,
-                         'longgate' : longgate,
+                         #'shortgate' : shortgate,
+                         #'longgate' : longgate,
                          'refpoint' : refpoint,
                          'left' : left,
                          'right' : right})
+
+def get_gates(frame, lg=500, sg=60, offset=10):
+    longgate=np.array([0]*len(frame), dtype=np.int16)
+    shortgate=np.array([0]*len(frame), dtype=np.int16)
+    species=np.array([0]*len(frame), dtype=np.int8)
+    for i in range(0, len(frame)):
+        k = round(100*i/len(frame))
+        sys.stdout.write("\rCalculating gates %d%%" % k)
+        sys.stdout.flush()
+        
+        start=int(round(frame.refpoint[i]/1000))-offset
+        longgate[i] = np.trapz(frame.samples[i][start:start+lg])
+        shortgate[i] = np.trapz(frame.samples[i][start:start+sg])
+
+        if shortgate[i]>longgate[i]:
+            #workaround. need to deal with reflections properly!
+            longgate[i]=1
+            shortgate[i]=1
+        if longgate[i]<=0 or shortgate[i]<=0:
+            longgate[i]=1
+            shortgate[i]=1
+        if (longgate[i]-shortgate[i])/longgate[i] < 0.08-longgate[i]*0.05/1000:
+            species[i] = -1
+        elif (longgate[i]-shortgate[i])/longgate[i] < 0.03+longgate[i]*0.025/1000:
+            species[i] = 0
+        else:
+            species[i] = 1
+        frame['species'] = species
+        frame['longgate']=longgate
+        frame['shortgate']=shortgate
+    return 0
 
 def cfd(samples, frac):
     peak = np.max(samples)
@@ -198,3 +228,20 @@ def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=80):
                 break
     return tof_hist
 
+#unsuccesful attempt at an improved tof algorithm.
+def tof_spectrum2(N, Y, fac=8, tol_left=0, tol_right=100):
+    tof_hist = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
+    counter=0
+    for row_N in N.itertuples():
+        counter+=1
+        percentage =  100*counter/len(N)
+        sys.stdout.write("\rGenerating tof spectrum %d%%"%percentage)
+        sys.stdout.flush()
+        i=row_N[0]
+        N_ts=fac*1000*N.timestamp[i]+N.refpoint[i]
+        Y_window=Y.query('%s-%s<1000*timestamp<%s+%s'%(N_ts, tol_left, N_ts, tol_right))
+        for row_Y in Y_window.itertuples():
+            y=row_Y[0]
+            DeltaT=int(round(fac*1000*Y_window.timestamp[y]+Y_window.refpoint[y] - N_ts))
+            tof_hist[0][DeltaT] += 1
+    return tof_hist

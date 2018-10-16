@@ -49,7 +49,7 @@ def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=80):
                     #print('gamma')
                     Gammas[G_index] = ne
                     G_index+=1
-                elif 35<Delta<55:
+                elif 45<Delta<65:
                     #print('neutron')
                     Neutrons[N_index] = ne
                     N_index+=1
@@ -64,8 +64,16 @@ def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=80):
 #Y.to_hdf('Y30.h5', 'a')
 #N=tof.basic_framer('test_N20NY20_30sch1.txt', 20)
 #N.to_hdf('testN20.h5', 'a')
-N=pd.read_hdf('N30.h5')
-Y=pd.read_hdf('Y30.h5')
+N=pd.read_hdf('data/2018-10-11/ne213/oct11_10min_ch0_Slice2.h5')
+#N1=pd.read_hdf('data/2018-10-02/ne213ch0/D1.h5')
+#N2=pd.read_hdf('data/2018-10-02/ne213ch0/D2.h5')
+#FN=[N0,N1,N2]
+#N=pd.concat(FN)
+Y=pd.read_hdf('data/2018-10-11/yapfront/oct11_10min_ch1_Slice2.h5')
+#Y1=pd.read_hdf('data/2018-10-02/yapch1/D1.h5')
+#Y2=pd.read_hdf('data/2018-10-02/yapch1/D1.h5')
+#FY=[Y0,Y1,Y2]
+#Y=pd.concat(FY)
 #N=pd.read_hdf('testneutron10.h5')
 #Y=pd.read_hdf('testgamma10.h5')
 H, Neutrons, Gammas = tof_spectrum(N,Y)
@@ -89,10 +97,10 @@ for i in Neutrons:
     if N.height[i] > max_peak_N:
         max_peak_N = N.height[i]
 
-persistantTracePlot(N, Neutrons, gridsize=max_peak_N, name="Neutron peak")
+persistantTracePlot(N, Neutrons, gridsize=max_peak_N, name="Neutron peak 45-65 ns")
 plt.xlim(-50,400)
 plt.show()
-persistantTracePlot(N, Gammas, gridsize=max_peak_G, name="Gamma peak")
+persistantTracePlot(N, Gammas, gridsize=max_peak_G, name="Gamma peak 12-18 ns")
 plt.xlim(-50,400)
 plt.show()
 
@@ -100,7 +108,7 @@ for i in Neutrons:
     F=N.refpoint[i]/1000
     plt.plot(range(0,len(N.samples[i]))-F, N.samples[i]/1024*1000, alpha=0.15,color='blue')
     plt.axvline(x=0, linestyle='--',color='blue')
-plt.title('Neutron peak pulses')
+plt.title('Neutron peak pulses: 45-65 ns')
 plt.xlabel('ns')
 plt.ylabel('mV')
 plt.xlim(-50,400)
@@ -110,7 +118,7 @@ for i in Gammas:
     F=N.refpoint[i]/1000
     plt.plot(range(0,len(N.samples[i]))-F, N.samples[i]/1024*1000, alpha=0.15,color='r')
     plt.axvline(x=0, linestyle='--',color='r')
-plt.title('Neutron peak pulses')
+plt.title('Gamma peak pulses: 12-18 ns')
 plt.xlabel('ns')
 plt.ylabel('mV')
 plt.xlim(-50,400)
@@ -118,14 +126,18 @@ plt.show()
 
 LN=[]
 for index in Neutrons:
-    LN.append(N.height[index])
+    LN.append(N.height[index]/1024*1000)
 plt.hist(LN,bins=50,range=(0,300),alpha=0.45)
-plt.xlabel('height')
+plt.xlabel('mV')
 plt.ylabel('counts')
+plt.title('neutron peak pulse height spectrum')
 plt.show()
 
 LY=[]
 for index in Gammas:
-    LY.append(Y.height[index])
-plt.hist(LY,bins=50,range=(0,300),alpha=0.45)
+    LY.append(Y.height[index]/1024*1000)
+plt.hist(LY,bins=50,range=(0,300),alpha=0.45, color='r')
+plt.xlabel('mV')
+plt.ylabel('counts')
+plt.title('gamma peak pulse height spectrum')
 plt.show()

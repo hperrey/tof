@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-N = pd.read_hdf('N10.h5')
-
-L=[20, 50, 80, 130, 200, 400]
+#N = pd.read_hdf('N10.h5')
+N=pd.read_hdf('test0_D0.h5')
+L=[0, 10, 40, 90, 200, 400]
 P=[0]*(len(L)-1)
 check=[0]*(len(L)-1)
 for i in range(0, len(N)):
