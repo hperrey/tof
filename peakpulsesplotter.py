@@ -10,9 +10,8 @@ def persistantTracePlot(F, filterlist, name, gridsize=100):
     time=[0]
     ampl=[0]
     for i in range(0, len(F)):
-        if i in filterlist:
-            time = np.concatenate([time,range(0,len(F.samples[i]))-F.refpoint[i]/1000])
-            ampl = np.concatenate([ampl, np.array(F.samples[i])/1024*1000])
+        time = np.concatenate([time,range(0,len(F.samples[i]))-F.refpoint[i]/1000])
+        ampl = np.concatenate([ampl, np.array(F.samples[i])/1024*1000])
     plt.xlabel('ns')
     plt.ylabel('mV')
     plt.hexbin(time, ampl, bins='log', gridsize=gridsize)
