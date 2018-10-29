@@ -7,6 +7,7 @@ data/*
 *.h5
 *.hdf
 *.hdf5
+*.dat
 #plots
 *.svg
 *.pdf
@@ -14,5 +15,3 @@ data/*
 *.png
 #ToF histograms saved as numpy arrays
 *.npy
-#binary wavedump output
-*.dat
