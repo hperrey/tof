@@ -5,25 +5,21 @@ import sys
 from itertools import islice
 import time
 import matplotlib.pyplot as plt
+from math import sqrt
 
 
-def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeResets=0):
+def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0):
     #Get number of lines
     if nlines == 0:
         nlines=sum(1 for line in (open(filename)))
     nevents = int(nlines/8)
     samples = [None]*nevents
-    #nTimeResets=0
+    nTimeResets=0
     timestamp = np.array([0]*nevents, dtype=np.int64)
-    refpoint = np.array([0]*nevents, dtype=np.int32)
-    left = np.array([0]*nevents, dtype=np.int16)
-    right = np.array([0]*nevents, dtype=np.int16)
+    refpoint_rise = np.array([0]*nevents, dtype=np.int32)
+    refpoint_fall = np.array([0]*nevents, dtype=np.int32)
     peak_index = np.array([0]*nevents, dtype=np.int16)
     height = np.array([0]*nevents, dtype=np.int16)
-    area = np.array([0]*nevents, dtype=np.int16)
-    #shortgate = np.array([0]*nevents, dtype=np.int16)
-    #longgate = np.array([0]*nevents, dtype=np.int16)
-    edges = [None]*nevents
     try:
         with open(filename, newline='\n') as f:
             reader = csv.reader(f)
@@ -36,7 +32,6 @@ def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeRese
                         break
                     else:
                         idx+=1
-
             #go to the startline
             for row in reader:
                 line_index +=1
@@ -71,59 +66,38 @@ def basic_framer(filename, threshold, frac=0.5, nlines=0, startline=0, nTimeRese
                             samples[event_index] *= -1
                         #get pulse height and pulse edge bins
                         height[event_index] = samples[event_index][peak_index[event_index]]
-                        edges[event_index] = find_edges(samples[event_index], peak_index[event_index])
-                        left[event_index]=edges[event_index][0]
-                        right[event_index]=edges[event_index][1]
-                        # if event is contained in samp window,
-                        #then get full, short and long gate area + go to nex  event.
-                        if edges[event_index][0] < edges[event_index][1]:
-                            area[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][1]])
-                            refpoint[event_index] = cfd(samples[event_index], frac)
-                            if refpoint[event_index] == -1:
-                                continue
-                            #sg = int((edges[event_index][1]-edges[event_index][0])*0.7)
-                            #lg = int((edges[event_index][1]-edges[event_index][0])*0.9)
-                            #shortgate[event_index] = np.trapz(samples[event_index][refpoint[event_index]-5:refpoint[event_index]+sg])
-                            #shortgate[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][0]+sg])
-                            #longgate[event_index] = np.trapz(samples[event_index][refpoint[event_index]-5:refpoint[event_index]+lg])
-                            #longgate[event_index] = np.trapz(samples[event_index][edges[event_index][0]:edges[event_index][0]+lg])
-                            event_index += 1
+                        refpoint_rise[event_index], refpoint_fall[event_index] = cfd(samples[event_index], frac, peak_index[event_index])
+                        #throw away events marked problematic by cfd alg. and events without room for tail.
+                        if refpoint_rise[event_index]<0 or  refpoint_fall[event_index]<0:
+                            continue
+                        event_index += 1
         #throw away empty rows.
         samples = samples[0:event_index]
         timestamp = timestamp[0:event_index]
         height = height[0:event_index]
         peak_index = peak_index[0:event_index]
-        edges = edges[0:event_index]
-        area = area[0:event_index]
-        #shortgate = shortgate[0:event_index]
-        #longgate = longgate[0:event_index]
-        refpoint = refpoint[0:event_index]
-        left = left[0:event_index]
-        right = right[0:event_index]
+        refpoint_rise = refpoint_rise[0:event_index]
+        refpoint_fall = refpoint_fall[0:event_index]
     except IOError:
         return None
     return pd.DataFrame({'timestamp': timestamp,
                          'samples' : samples,
                          'height' : height,
                          'peak_index':peak_index,
-                         'edges' : edges,
-                         'area' : area,
-                         #'shortgate' : shortgate,
-                         #'longgate' : longgate,
-                         'refpoint' : refpoint,
-                         'left' : left,
-                         'right' : right})
+                         'refpoint_rise' : refpoint_rise,
+                         'refpoint_fall' : refpoint_fall})
 
-def get_gates(frame, lg=500, sg=60, offset=10):
+def get_gates(frame, lg=500, sg=55, offset=10):
     longgate=np.array([0]*len(frame), dtype=np.int16)
     shortgate=np.array([0]*len(frame), dtype=np.int16)
-    species=np.array([0]*len(frame), dtype=np.int8)
+    pulsetail=np.array([0]*len(frame), dtype=np.int16)
+    species=np.array([-1]*len(frame), dtype=np.int8)
     for i in range(0, len(frame)):
         k = round(100*i/len(frame))
         sys.stdout.write("\rCalculating gates %d%%" % k)
         sys.stdout.flush()
-        
-        start=int(round(frame.refpoint[i]/1000))-offset
+
+        start=int(round(frame.refpoint_rise[i]/1000))-offset
         longgate[i] = np.trapz(frame.samples[i][start:start+lg])
         shortgate[i] = np.trapz(frame.samples[i][start:start+sg])
 
@@ -134,51 +108,72 @@ def get_gates(frame, lg=500, sg=60, offset=10):
         if longgate[i]<=0 or shortgate[i]<=0:
             longgate[i]=1
             shortgate[i]=1
-        if (longgate[i]-shortgate[i])/longgate[i] < 0.08-longgate[i]*0.05/1000:
-            species[i] = -1
-        elif (longgate[i]-shortgate[i])/longgate[i] < 0.03+longgate[i]*0.025/1000:
-            species[i] = 0
-        else:
-            species[i] = 1
-        frame['species'] = species
-        frame['longgate']=longgate
-        frame['shortgate']=shortgate
+
+        #get species
+        def species_checker(lg, sg):
+            species = -1
+            ps=(lg-sg)/lg
+            #region 1
+            if ps <= 0.14+lg*(0.30-0.14)/10000:
+                if lg > 1100:
+                    species = 0
+                else:
+                    species = -1
+            else:
+                species = 1
+            #Cut away messy region
+            #if ps < 0.26-lg*0.26/1300:
+            #    species = -1
+            return species
+        species[i]=species_checker(longgate[i], shortgate[i])
+        #tail
+        pulsetail[i] = np.trapz(frame.samples[i][int(frame.refpoint_fall[i]/1000):int(frame.refpoint_fall[i]/1000)+lg])
+
+    frame['species'] = species
+    frame['ps'] = (longgate-shortgate)/longgate
+    frame['longgate']=longgate
+    frame['shortgate']=shortgate
+    frame['pulsetail']=pulsetail
     return 0
 
-def cfd(samples, frac):
-    peak = np.max(samples)
-    index = 0
-    for i in range(0,len(samples)):
+def cfd(samples, frac, peak_index):
+    peak = samples[peak_index]
+    rise_index = 0
+    fall_index = 0
+    #find the cfd rise point
+    for i in range(0, peak_index):
         if samples[i] > frac*peak:
-            index = i
+            rise_index = i
             break
         else:
-            index = 0
-    slope = (samples[index] - samples[index-1])#divided by 1ns
-    if slope == 0:
-        np.save('array',samples)
-        print('\nslope == 0!!!!')
-        print('\nindex=', index)
-        print('\n', samples[index-5:index+5])
-        tfine = -1
+            rise_index = 0
+    #find the cfd fall point
+    for i in range(peak_index, len(samples)):
+        if samples[i] < frac*peak:
+            fall_index = i
+            break
+        else:
+            fall_index = 0
+    slope_rise = (samples[rise_index] - samples[rise_index-1])#divided by 1ns
+    slope_fall = (samples[fall_index] - samples[fall_index-1])#divided by 1ns
+    #slope equal 0 is a sign of error. fx a pulse located
+    #in first few bins and already above threshold in bin 0.
+    #rise
+    if slope_rise == 0:
+        print('\nslope == 0!!!!\nindex=', rise_index,'\n', samples[rise_index-5:rise_index+5])
+        tfine_rise = -1
     else:
-        tfine = 1000*(index-1) + int(round(1000*(peak*frac-samples[index-1])/slope))
-    return tfine
+        tfine_rise = 1000*(rise_index-1) + int(round(1000*(peak*frac-samples[rise_index-1])/slope_rise))
+    #fall
+    if slope_fall == 0:
+        print('\nslope == 0!!!!\nindex=', fall_index,'\n', samples[fall_index-5:fall_index+5])
+        tfine_fall = -1
+    else:
+        tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
+    return tfine_rise, tfine_fall
 
 
-def find_edges(samples, refpoint):
-    edges = [0,0]
-    for i in range(refpoint, 0, -1):
-        if samples[i]<2:
-            edges[0]=i
-            break
-    for i in range(refpoint, len(samples)):
-        if samples[i]<2:
-            edges[1]=i
-            break
-    return edges
-
-def get_frames(filename, threshold, frac=0.5):
+def get_frames(filename, threshold, frac=0.3):
     time0 = time.time()
     nlines=sum(1 for line in (open(filename)))
     nlinesBlock = 2**21 # lines per block
@@ -190,13 +185,9 @@ def get_frames(filename, threshold, frac=0.5):
     Blocklines[-1] = nlinesBlockF
     #we need nBlocks +1 dataframes
     FrameList=[0]*len(Blocklines)
-    nTimeResets=0
     for i in range(0, len(Blocklines)):
-        #if i>0:
-        #    nTimeResets=int((FrameList[i-1].timestamp[len(FrameList[i-1])-1])/2147483647)
         print('\n -------------------- \n frame', i+1, '/', len(FrameList), '\n --------------------')
-        #print('---nTimeResets=', nTimeResets,'---')
-        FrameList[i] = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock,nTimeResets=0)
+        FrameList[i] = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock)
     time1 = time.time()
     deltaT=time1-time0
     print('Runtime: ', deltaT/60, 'minutes')
@@ -219,7 +210,7 @@ def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=80):
         sys.stdout.write("\rGenerating tof spectrum %d%%" % k)
         sys.stdout.flush()
         for y in range(ymin, len(yap)):
-            Delta=int(round(((fac*1000*ne213.timestamp[ne]+ne213.refpoint[ne])-(fac*1000*yap.timestamp[y]+yap.refpoint[y]))/1000))
+            Delta=int(round(((fac*1000*ne213.timestamp[ne]+ne213.refpoint_rise[ne])-(fac*1000*yap.timestamp[y]+yap.refpoint_rise[y]))/1000))
             if Delta > tol_right:
                 ymin = y
             if tol_left < Delta <tol_right:

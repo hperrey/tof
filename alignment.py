@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tof
 #N = pd.read_hdf('N10.h5')
-N_all=pd.read_hdf('data/2018-10-15/ne213/oct15_10min_ch0_Slice2.h5')
+N_all=pd.read_hdf('data/2018-10-23/N3.h5')
 tof.get_gates(N_all, lg=500, sg=60, offset=10)
 N=N_all.query('species==0').reset_index(drop=True)
-L=[0, 10, 40, 90, 200, 400]
+L=[0, 40, 80, 120, 160, 200]
 P=[0]*(len(L)-1)
 check=[0]*(len(L)-1)
 for i in range(0, len(N)):
@@ -24,12 +24,13 @@ for i in range(0, len(N)):
 
 #cfd alignment
 for i in P:
-    F=N.refpoint[i]/1000
-    plt.plot(range(0,len(N.samples[i]))-F, N.samples[i]/1024*1000, alpha=0.73)
+    F=N.refpoint_rise[i]/1000
+    plt.plot(range(0,len(N.samples[i]))-F, -N.samples[i]/1024*1000, alpha=0.55)
+    plt.scatter(range(0,len(N.samples[i]))-F, -N.samples[i]/1024*1000, s=2)
     #pl.scatt
 plt.axvline(x=0, linestyle='--')
 plt.xlim(-20,270)
-plt.title('CFD alignment of NE213 pulses. CFD fraction = 0.5')
+plt.title('CFD alignment of NE213 pulses. CFD fraction = 0.3')
 plt.xlabel('ns')
 plt.ylabel('mV')
 plt.legend(('height=%d mV'%round(N.height[P[0]]*1000/1024),

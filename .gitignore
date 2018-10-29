@@ -1,9 +1,18 @@
 #ignore the data files#
 #######################
+#data folder contents
+data/*
+#data files
 *.txt
 *.h5
 *.hdf
 *.hdf5
+#plots
+*.svg
+*.pdf
+*.jpg
 *.png
-/**/*.png
+#ToF histograms saved as numpy arrays
 *.npy
+#binary wavedump output
+*.dat
