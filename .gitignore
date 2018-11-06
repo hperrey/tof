@@ -2,16 +2,28 @@
 #######################
 #data folder contents
 data/*
+
 #data files
 *.txt
 *.h5
 *.hdf
 *.hdf5
+<<<<<<< HEAD
 *.dat
+=======
+
+>>>>>>> b610f658ead852dc2ee6b17259d4e5b3e5cba672
 #plots
 *.svg
 *.pdf
 *.jpg
 *.png
+
 #ToF histograms saved as numpy arrays
 *.npy
+<<<<<<< HEAD
+=======
+
+#binary wavedump output
+*.dat
+>>>>>>> b610f658ead852dc2ee6b17259d4e5b3e5cba672
