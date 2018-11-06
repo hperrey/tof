@@ -97,17 +97,19 @@ def get_gates(frame, lg=500, sg=55, offset=10):
         sys.stdout.write("\rCalculating gates %d%%" % k)
         sys.stdout.flush()
 
-        start=int(round(frame.refpoint_rise[i]/1000))-offset
+        #start = int(round(frame.refpoint_rise[i]/1000))-offset
+        start = frame.peak_index[i]-offset
         longgate[i] = np.trapz(frame.samples[i][start:start+lg])
         shortgate[i] = np.trapz(frame.samples[i][start:start+sg])
 
+        #send weird events to quarantine bins
         if shortgate[i]>longgate[i]:
             #workaround. need to deal with reflections properly!
-            longgate[i]=1
-            shortgate[i]=1
+            longgate[i]=20000
+            shortgate[i]=20000
         if longgate[i]<=0 or shortgate[i]<=0:
-            longgate[i]=1
-            shortgate[i]=1
+            longgate[i]=20000
+            shortgate[i]=20000
 
         #get species
         def species_checker(lg, sg):
@@ -125,7 +127,15 @@ def get_gates(frame, lg=500, sg=55, offset=10):
             #if ps < 0.26-lg*0.26/1300:
             #    species = -1
             return species
-        species[i]=species_checker(longgate[i], shortgate[i])
+        #alternative species getter
+        def alt_species_checker(lg, sg):
+            if (lg-sg)/lg > -0.1953+0.4556*(sg/lg):
+                species = 1
+            else:
+                species = 0
+            return species
+
+        species[i]=alt_species_checker(longgate[i], shortgate[i])
         #tail
         pulsetail[i] = np.trapz(frame.samples[i][int(frame.refpoint_fall[i]/1000):int(frame.refpoint_fall[i]/1000)+lg])
 
@@ -173,7 +183,7 @@ def cfd(samples, frac, peak_index):
     return tfine_rise, tfine_fall
 
 
-def get_frames(filename, threshold, frac=0.3):
+def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/ThesisWork/code/tof/data/'):
     time0 = time.time()
     nlines=sum(1 for line in (open(filename)))
     nlinesBlock = 2**21 # lines per block
@@ -184,14 +194,16 @@ def get_frames(filename, threshold, frac=0.3):
     Blocklines =[nlinesBlock]*(nBlocks+1)
     Blocklines[-1] = nlinesBlockF
     #we need nBlocks +1 dataframes
-    FrameList=[0]*len(Blocklines)
-    for i in range(0, len(Blocklines)):
-        print('\n -------------------- \n frame', i+1, '/', len(FrameList), '\n --------------------')
-        FrameList[i] = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock)
+    #FrameList=[0]*len(Blocklines)
+    for i in range(0, (nBlocks+1)):
+        print('\n -------------------- \n frame', i+1, '/', (nBlocks+1), '\n --------------------')
+        Frame = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock)
+        if outpath!='':
+            Frame.to_hdf(outpath+'%s.h5'%i, 'a')
     time1 = time.time()
     deltaT=time1-time0
     print('Runtime: ', deltaT/60, 'minutes')
-    return FrameList
+    return 0
 
 
 
