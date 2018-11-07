@@ -91,7 +91,7 @@ def get_gates(frame, lg=500, sg=55, offset=10):
     longgate=np.array([0]*len(frame), dtype=np.int16)
     shortgate=np.array([0]*len(frame), dtype=np.int16)
     pulsetail=np.array([0]*len(frame), dtype=np.int16)
-    species=np.array([-1]*len(frame), dtype=np.int8)
+#    species=np.array([-1]*len(frame), dtype=np.int8)
     for i in range(0, len(frame)):
         k = round(100*i/len(frame))
         sys.stdout.write("\rCalculating gates %d%%" % k)
@@ -111,40 +111,48 @@ def get_gates(frame, lg=500, sg=55, offset=10):
             longgate[i]=20000
             shortgate[i]=20000
 
-        #get species
-        def species_checker(lg, sg):
-            species = -1
-            ps=(lg-sg)/lg
-            #region 1
-            if ps <= 0.14+lg*(0.30-0.14)/10000:
-                if lg > 1100:
-                    species = 0
-                else:
-                    species = -1
-            else:
-                species = 1
-            #Cut away messy region
-            #if ps < 0.26-lg*0.26/1300:
-            #    species = -1
-            return species
-        #alternative species getter
-        def alt_species_checker(lg, sg):
-            if (lg-sg)/lg > -0.1953+0.4556*(sg/lg):
-                species = 1
-            else:
-                species = 0
-            return species
-
-        species[i]=alt_species_checker(longgate[i], shortgate[i])
         #tail
         pulsetail[i] = np.trapz(frame.samples[i][int(frame.refpoint_fall[i]/1000):int(frame.refpoint_fall[i]/1000)+lg])
 
-    frame['species'] = species
     frame['ps'] = (longgate-shortgate)/longgate
     frame['longgate']=longgate
     frame['shortgate']=shortgate
     frame['pulsetail']=pulsetail
     return 0
+
+
+def get_species(df, X=[0, 1190,2737, 20000], Y=[0, 0.105, 0.148, 0.235]):
+    species=np.array([-1]*len(df), dtype=np.int8)
+    #loop through pulses
+    for n in range(0, len(df)):
+        k = round(100*n/len(df))
+        sys.stdout.write("\rGetting species %d%%" % k)
+        sys.stdout.flush()
+        #If we are to the left of the exclusion zone
+        if df.longgate[n]<X[1]:
+            print('qqqqqqqqqqqqq')
+            #inside exclusion box=>indistinguishable
+            if df.ps[n]<Y[1]:
+                print('-1')
+                species[n]=-1
+                #above exclusion box=>neutron
+            else:
+                print('1')
+                species[n]=1
+        #If we are to the right of the exclusion zone
+        #then loop through coordinates
+        elif df.longgate[n]>=X[1]:
+            for i in range(1,len(X)):
+                #find the interval the pulse belongs to
+                if df.longgate[n]<X[i]:
+                    if X[i]>=X[1]:
+                        #are we below(gamma) or above(neutron) of the discrimination line
+                        if df.ps[n]<Y[i-1]+(df.longgate[n]-X[i-1])*(Y[i]-Y[i-1])/(X[i]-X[i-1]):
+                            species[n] = 0
+                        else:
+                            species[n] = 1
+                        break
+    df['species'] = species
 
 def cfd(samples, frac, peak_index):
     peak = samples[peak_index]
@@ -180,7 +188,6 @@ def cfd(samples, frac, peak_index):
         tfine_fall = -1
     else:
         tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
-    return tfine_rise, tfine_fall
 
 
 def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/ThesisWork/code/tof/data/'):
