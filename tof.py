@@ -214,7 +214,7 @@ def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/Th
 
 
 
-def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=80):
+def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=120):
     ymin=0
     tof_hist = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
     #tof_hist1 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
