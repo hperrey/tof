@@ -6,6 +6,7 @@ from itertools import islice
 import time
 import matplotlib.pyplot as plt
 from math import sqrt
+from math import atan
 
 
 def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0):
@@ -91,6 +92,7 @@ def get_gates(frame, lg=500, sg=55, offset=10):
     longgate=np.array([0]*len(frame), dtype=np.int16)
     shortgate=np.array([0]*len(frame), dtype=np.int16)
     pulsetail=np.array([0]*len(frame), dtype=np.int16)
+    theta=np.array([0]*len(frame), dtype=np.int16)
 #    species=np.array([-1]*len(frame), dtype=np.int8)
     for i in range(0, len(frame)):
         k = round(100*i/len(frame))
@@ -101,6 +103,7 @@ def get_gates(frame, lg=500, sg=55, offset=10):
         start = frame.peak_index[i]-offset
         longgate[i] = np.trapz(frame.samples[i][start:start+lg])
         shortgate[i] = np.trapz(frame.samples[i][start:start+sg])
+        theta[i] = atan(2*frame.height[i]/frame.refpoint_fall[i]-frame.refpoint_rise[i])
 
         #send weird events to quarantine bins
         if shortgate[i]>longgate[i]:
@@ -118,6 +121,7 @@ def get_gates(frame, lg=500, sg=55, offset=10):
     frame['longgate']=longgate
     frame['shortgate']=shortgate
     frame['pulsetail']=pulsetail
+    frame['theta']=theta
     return 0
 
 
@@ -130,14 +134,11 @@ def get_species(df, X=[0, 1190,2737, 20000], Y=[0, 0.105, 0.148, 0.235]):
         sys.stdout.flush()
         #If we are to the left of the exclusion zone
         if df.longgate[n]<X[1]:
-            print('qqqqqqqqqqqqq')
             #inside exclusion box=>indistinguishable
             if df.ps[n]<Y[1]:
-                print('-1')
                 species[n]=-1
                 #above exclusion box=>neutron
             else:
-                print('1')
                 species[n]=1
         #If we are to the right of the exclusion zone
         #then loop through coordinates
@@ -188,6 +189,7 @@ def cfd(samples, frac, peak_index):
         tfine_fall = -1
     else:
         tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
+    return tfine_rise, tfine_fall
 
 
 def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/ThesisWork/code/tof/data/'):
@@ -217,6 +219,7 @@ def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/Th
 def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=120):
     ymin=0
     tof_hist = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
+    dt=np.array([0]*len(ne213), dtype=np.int16)
     #tof_hist1 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
     #tof_hist2 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
 
@@ -234,24 +237,12 @@ def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=120):
                 ymin = y
             if tol_left < Delta <tol_right:
                 tof_hist[0][tol_left+int(Delta)] += 1
+                if dt[ne] == 0:
+                    dt[ne]=Delta
+                else:
+                    print('Multiple matches!!! taking the first one!')
             elif Delta < -tol_right:
                 break
+        ne213['dt']=dt
     return tof_hist
 
-#unsuccesful attempt at an improved tof algorithm.
-def tof_spectrum2(N, Y, fac=8, tol_left=0, tol_right=100):
-    tof_hist = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
-    counter=0
-    for row_N in N.itertuples():
-        counter+=1
-        percentage =  100*counter/len(N)
-        sys.stdout.write("\rGenerating tof spectrum %d%%"%percentage)
-        sys.stdout.flush()
-        i=row_N[0]
-        N_ts=fac*1000*N.timestamp[i]+N.refpoint[i]
-        Y_window=Y.query('%s-%s<1000*timestamp<%s+%s'%(N_ts, tol_left, N_ts, tol_right))
-        for row_Y in Y_window.itertuples():
-            y=row_Y[0]
-            DeltaT=int(round(fac*1000*Y_window.timestamp[y]+Y_window.refpoint[y] - N_ts))
-            tof_hist[0][DeltaT] += 1
-    return tof_hist
