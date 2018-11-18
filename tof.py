@@ -9,13 +9,12 @@ from math import sqrt
 from math import atan
 
 
-def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0):
+def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=0):
     #Get number of lines
     if nlines == 0:
         nlines=sum(1 for line in (open(filename)))
     nevents = int(nlines/8)
     samples = [None]*nevents
-    nTimeResets=0
     timestamp = np.array([0]*nevents, dtype=np.int64)
     refpoint_rise = np.array([0]*nevents, dtype=np.int32)
     refpoint_fall = np.array([0]*nevents, dtype=np.int32)
@@ -45,10 +44,10 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0):
                     sys.stdout.flush()
                     dummytimestamp = int(row[0].split()[3])
                     if event_index > 0:
-                        if dummytimestamp < timestamp[event_index-1]-nTimeResets*2147483647:
-                            nTimeResets += 1
+                        if dummytimestamp < timestamp[event_index-1]-nTimesReset*2147483647:
+                            nTimesReset += 1
                             #print('\ntime reset!\n')
-                    timestamp[event_index]= (dummytimestamp+nTimeResets*2147483647)
+                    timestamp[event_index]= (dummytimestamp+nTimesReset*2147483647)
                 if line_index%8 == 0:#every eigth row is the data
                     dummy = row[0].split()
                     dummy=[int(i) for i in dummy]
@@ -86,7 +85,7 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0):
                          'height' : height,
                          'peak_index':peak_index,
                          'refpoint_rise' : refpoint_rise,
-                         'refpoint_fall' : refpoint_fall})
+                         'refpoint_fall' : refpoint_fall}), nTimesReset
 
 def get_gates(frame, lg=500, sg=55, offset=10):
     longgate=np.array([0]*len(frame), dtype=np.int16)
@@ -204,9 +203,10 @@ def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/Th
     Blocklines[-1] = nlinesBlockF
     #we need nBlocks +1 dataframes
     #FrameList=[0]*len(Blocklines)
+    nTimesReset = 0
     for i in range(0, (nBlocks+1)):
         print('\n -------------------- \n frame', i+1, '/', (nBlocks+1), '\n --------------------')
-        Frame = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock)
+        Frame, nTimesReset = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock, nTimesReset=nTimesReset)
         if outpath!='':
             Frame.to_hdf(outpath+'%s.h5'%i, 'a')
     time1 = time.time()
