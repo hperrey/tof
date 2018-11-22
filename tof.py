@@ -235,7 +235,7 @@ def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=120):
             Delta=int(round(((fac*1000*ne213.timestamp[ne]+ne213.refpoint_rise[ne])-(fac*1000*yap.timestamp[y]+yap.refpoint_rise[y]))/1000))
             if Delta > tol_right:
                 ymin = y
-            if tol_left < Delta <tol_right:
+            if tol_left <= Delta < tol_right:
                 tof_hist[0][tol_left+int(Delta)] += 1
                 if dt[ne] == 0:
                     dt[ne]=Delta
