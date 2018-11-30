@@ -101,6 +101,22 @@ def QDC(N, mode):
         #Sum
         N_dummy = N.query('0<qdc_det0<15000')
         lg = N_dummy.qdc_det0
+        plt.hist(lg, range=(0, max_lg), bins=750, histtype='step', lw=2, log=True)
+    elif mode == "Digital":
+        max_lg=8000
+        plt.hist(N.longgate, range=(0, max_lg), bins=750, histtype='step', lw=2, log=True)
+    plt.title('%s QDC spectrum'%mode)
+    plt.ylabel('counts')
+    plt.xlabel('longgate')
+    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/qdc_psd.png'%mode, format='png')
+    plt.show()
+
+def QDC_filtered(N, mode):
+    if mode == "Analog":
+        max_lg=6000
+        #Sum
+        N_dummy = N.query('0<qdc_det0<15000')
+        lg = N_dummy.qdc_det0
         plt.hist(lg, range=(0, max_lg), bins=750, histtype='step', lw=2, log=True, label='Sum')
         #Rejected
         N_dummy = N.query('species==-1 and 0<qdc_det0<%s'%max_lg)
@@ -125,11 +141,25 @@ def QDC(N, mode):
     plt.title('%s psd filtered qdc spectra'%mode)
     plt.ylabel('counts')
     plt.xlabel('longgate')
-    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/qdc_psd.png'%mode, format='png')
+    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/qdc_filtered_psd.png'%mode, format='png')
     plt.legend()
     plt.show()
 
 def ToF(N, mode):
+    if mode == "Analog":
+        left = 400
+        right = 1100
+        dt = N.tdc_det0_yap0
+    elif mode == "Digital":
+        left = 20
+        right = 120
+        dt=N.dt
+    plt.hist(dt, bins=right-left, range=(left, right), histtype='step', linewidth=2)
+    plt.title('%s Time of flight spectrum'%mode)
+    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/tof_psd.png'%mode, format='png')
+    plt.show()
+
+def ToF_filtered(N, mode):
     if mode == "Analog":
         left = 400
         right = 1100
@@ -163,7 +193,7 @@ def ToF(N, mode):
         plt.hist(N.query('species==-1').dt, bins=100, label='Rejected', range=(left, right), histtype='step', linewidth=2)
     plt.legend()
     plt.title('%s Time of flight spectrum'%mode)
-    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/tof_psd.png'%mode, format='png')
+    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/tof_filtered_psd.png'%mode, format='png')
     plt.show()
 
 def ps_tof(N, mode):
@@ -233,7 +263,9 @@ if __name__ == "__main__":
             fcn(N.head(n=nrows), mode=mode)
     ask(q="Do you want to generate QDC-PS plots? (Y/N)", fcn=PSD)
     ask(q="Do you want to generate QDC spectrum? (Y/N)", fcn=QDC)
+    ask(q="Do you want to generate PSD filtered QDC spectrum? (Y/N)", fcn=QDC_filtered)
     ask(q="Do you want to generate ToF spectrum? (Y/N)", fcn=ToF)
+    ask(q="Do you want to generate PSD filtered ToF spectrum? (Y/N)", fcn=ToF_filtered)
     ask(q="Do you want to generate PS-ToF spectrum? (Y/N)", fcn=ps_tof)
 
 
