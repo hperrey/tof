@@ -97,13 +97,13 @@ def PSD(N, mode):
 
 def QDC(N, mode):
     if mode == "Analog":
-        max_lg=6000
+        max_lg=15000
         #Sum
         N_dummy = N.query('0<qdc_det0<15000')
         lg = N_dummy.qdc_det0
         plt.hist(lg, range=(0, max_lg), bins=750, histtype='step', lw=2, log=True)
     elif mode == "Digital":
-        max_lg=8000
+        max_lg=15000
         plt.hist(N.longgate, range=(0, max_lg), bins=750, histtype='step', lw=2, log=True)
     plt.title('%s QDC spectrum'%mode)
     plt.ylabel('counts')
@@ -113,7 +113,7 @@ def QDC(N, mode):
 
 def QDC_filtered(N, mode):
     if mode == "Analog":
-        max_lg=6000
+        max_lg=15000
         #Sum
         N_dummy = N.query('0<qdc_det0<15000')
         lg = N_dummy.qdc_det0
@@ -241,8 +241,8 @@ if __name__ == "__main__":
     if mode == "D" or mode == "d":
         mode = "Digital"
         print("loading and processing digitized data")
-        N=pd.read_hdf('data/2018-10-23/N_cooked.h5')#.head(n=10000)
-        Y=pd.read_hdf('data/2018-10-23/Y_cooked.h5')#.head(n=10000)
+        N=pd.read_hdf('data/2018-12-04/N_cooked.h5')
+        Y=pd.read_hdf('data/2018-12-04/Y_cooked.h5')
         #=====Get more info====#
         #tof.get_gates(N)
         #tof.get_species(N)

@@ -57,11 +57,13 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesRes
                     B = 20
                     baseline = int(sum(samples[event_index][0:B])/B)
                     samples[event_index] -= baseline
-                    #check the polarity and check if the pulse crosses threshold
+                    #check the polarity and check if the pulse crosses threshold and if it is properly contained
                     peak_index[event_index] = np.argmax(np.absolute(samples[event_index]))
                     if np.absolute(samples[event_index][peak_index[event_index]]) < threshold:
                         continue
-                    elif np.absolute(samples[event_index][peak_index[event_index]]) >= threshold:
+                    elif len(samples[event_index])-peak_index[event_index] < 500:
+                        continue
+                    else:
                         if samples[event_index][peak_index[event_index]] < 0:
                             samples[event_index] *= -1
                         #get pulse height and pulse edge bins
@@ -207,10 +209,21 @@ def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/Th
     for i in range(0, (nBlocks+1)):
         print('\n -------------------- \n frame', i+1, '/', (nBlocks+1), '\n --------------------')
         Frame, nTimesReset = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock, nTimesReset=nTimesReset)
+        get_gates(Frame)
+        get_species(Frame)
         if outpath!='':
             Frame.to_hdf(outpath+'%s.h5'%i, 'a')
     time1 = time.time()
     deltaT=time1-time0
+
+    #make the cooked frame
+    D=[0]*(nBlocks+1)
+    for i in range(0, (nBlocks+1)):
+        D[i]=pd.read_hdf(outpath+'%d.h5'%i)
+        D[i].drop('samples', axis=1)
+    D=pd.concat(D).reset_index()
+    D.to_hdf(outpath+'_cooked.h5', 'a')
+
     print('Runtime: ', deltaT/60, 'minutes')
     return 0
 
@@ -219,7 +232,7 @@ def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/Th
 def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=120):
     ymin=0
     tof_hist = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
-    dt=np.array([0]*len(ne213), dtype=np.int16)
+    dt=np.array([0]*len(ne213), dtype=np.int32)
     #tof_hist1 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
     #tof_hist2 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
 

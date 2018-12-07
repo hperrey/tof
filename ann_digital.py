@@ -10,19 +10,23 @@ import numpy as np
 # fix random seed for reproducibility
 numpy.random.seed(666)
 
-N=pd.read_hdf('data/2018-10-23/N_cooked.h5').query('1500<longgate<=6000')
+
+MaxQDC=6000
+N=pd.read_hdf('data/2018-12-04/N_cooked.h5').query('1500<longgate<=%d'%MaxQDC)
+N['species']=np.array([0]*len(N))
 #N=pd.read_hdf('1160_species.h5')
-M0=N.query('35<dt<42').reset_index()
+#M0=N.query('35<dt<42').reset_index()
+M0=N.query('31<=dt<=33').reset_index()
 M0['species']=np.array([0]*len(M0))
-M0=M0.head(n=121)
-M1=N.query('65<dt<90').reset_index()
+M0=M0.head(n=130)
+M1=N.query('60<dt<85').reset_index()
 M1['species']=np.array([1]*len(M1))
-M1=M1.head(n=121)
+M1=M1.head(n=130)
 M=pd.concat([M0,M1])
 M=M.sample(frac=1).reset_index(drop=True)
 #M['ps']=(M.qdc_det0-M.qdc_sg_det0)/M.qdc_det0
-M['longgate']=M.longgate/6000
-M['shortgate']=M.shortgate/6000
+M['longgate']=M.longgate/MaxQDC
+M['shortgate']=M.shortgate/MaxQDC
 M['height']=M['height']/250
 
 
@@ -34,8 +38,8 @@ Y_train=M_train.species#the goals
 
 M_test = N#.head(n=50000)
 #M_test['ps']=(M_test.qdc_det0-M_test.qdc_sg_det0)/M_test.qdc_det0
-M_test['longgate']=M_test.longgate/6000
-M_test['shortgate']=M_test.shortgate/6000
+M_test['longgate']=M_test.longgate/MaxQDC
+M_test['shortgate']=M_test.shortgate/MaxQDC
 M_test['height']=M_test['height']/250
 
 X_test=M_test[['longgate','ps', 'height', 'shortgate']]
@@ -61,9 +65,9 @@ predictions = model.predict(X_test)
 rounded = [round(x[0]) for x in predictions]
 #print(rounded)
 
-M_test['predict'] = rounded
-plt.scatter(M_test.query('predict==1').longgate*6000, M_test.query('predict==1').ps, s=10, alpha=0.35, label='test data classified as neutrons')
-plt.scatter(M_test.query('predict==0').longgate*6000, M_test.query('predict==0').ps,s=10, alpha=0.35, label='test data classified as gammas')
+M_test['predict'] = predictions
+plt.scatter(M_test.query('predict>0.50').longgate*MaxQDC, M_test.query('predict>0.5').ps, s=10, alpha=0.35, label='test data classified as neutrons')
+plt.scatter(M_test.query('predict<=0.5').longgate*MaxQDC, M_test.query('predict<=0.5').ps,s=10, alpha=0.35, label='test data classified as gammas')
 plt.scatter(M1.longgate, M1.ps, label='training data (neutron peak)')
 plt.scatter(M0.longgate, M0.ps, label='training data (gamma peak)')
 plt.legend()
@@ -71,8 +75,8 @@ plt.show()
 
 K = pd.read_hdf('data/2018-10-23/N_cooked.h5')
 plt.hist(M_test.dt, range=(20,120), bins=50, histtype='step', lw=2, label='Unfiltered (With QDC cut at 1500)')
-plt.hist(K.dt, range=(20,120), bins=50, histtype='step', lw=2, label='Unfiltered (Without QDC cut)')
-plt.hist(M_test.query('predict==0').dt, range=(20,120), bins=50, histtype='step', lw=2, label='Gamma prediction')
-plt.hist(M_test.query('predict==1').dt, range=(20,120), bins=50, histtype='step', lw=2, label='Neutron prediction')
+#plt.hist(K.dt, range=(20,120), bins=50, histtype='step', lw=2, label='Unfiltered (Without QDC cut)')
+plt.hist(M_test.query('predict<=0.5').dt, range=(20,120), bins=50, histtype='step', lw=2, label='Gamma prediction')
+plt.hist(M_test.query('predict>0.5').dt, range=(20,120), bins=50, histtype='step', lw=2, label='Neutron prediction')
 plt.legend()
 plt.show()
