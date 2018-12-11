@@ -20,12 +20,14 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesRes
     refpoint_fall = np.array([0]*nevents, dtype=np.int32)
     peak_index = np.array([0]*nevents, dtype=np.int16)
     height = np.array([0]*nevents, dtype=np.int16)
+    acq_window = 0
     try:
         with open(filename, newline='\n') as f:
             reader = csv.reader(f)
             line_index = startline
             event_index = 0
             idx=0
+            #Scan forwards through the file until you are at the provided start time
             if line_index > 0:
                 for row in reader:
                     if idx == startline-1:
@@ -60,8 +62,6 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesRes
                     #check the polarity and check if the pulse crosses threshold and if it is properly contained
                     peak_index[event_index] = np.argmax(np.absolute(samples[event_index]))
                     if np.absolute(samples[event_index][peak_index[event_index]]) < threshold:
-                        continue
-                    elif len(samples[event_index])-peak_index[event_index] < 500:
                         continue
                     else:
                         if samples[event_index][peak_index[event_index]] < 0:
