@@ -241,8 +241,8 @@ if __name__ == "__main__":
     if mode == "D" or mode == "d":
         mode = "Digital"
         print("loading and processing digitized data")
-        N=pd.read_hdf('data/2018-12-11/set5/N_cooked.h5')
-        Y=pd.read_hdf('data/2018-12-11/set5/Y_cooked.h5')
+        N=pd.read_hdf('data/2018-12-13/N_cooked.h5')
+        Y=pd.read_hdf('data/2018-12-13/Y_cooked.h5')
         #=====Get more info====#
         #tof.get_gates(N)
         #tof.get_species(N)
