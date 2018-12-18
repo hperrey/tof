@@ -125,25 +125,31 @@ def get_gates(frame, lg=500, sg=55, offset=10):
     frame['theta']=theta
     return 0
 
-def get_gates2(frame, step=20, Ngates = 25, offset=10):
-    Ngates = 25
-    g = [np.array([0] * len(frame), dtype=np.int16)] * Ngates
+def get_gates2(frame, stepsize=20, offset=10):
+    g0 = [0]*len(frame)
+    g1 = [0]*len(frame)
+    g2 = [0]*len(frame)
+    g3 = [0]*len(frame)
+    g4 = [0]*len(frame)
     for i in range(0, len(frame)):
-
         k = round(100*i/len(frame))
         sys.stdout.write("\rCalculating gates %d%%" % k)
         sys.stdout.flush()
 
         start = frame.peak_index[i]-offset
-        g[0][i]=np.trapz(frame.samples[i][start:start+step])
-        for t in range(1,Ngates):
-            g[t][i] = np.trapz(frame.samples[i][start:start+step])
-            g[t][i] += g[t-1][i]
-            start+=20
-    for i in range (0, len(frame)):
-        for t in range(0, Ngates):
-            frame['g%d'%t]=g[t][i]
+        g0[i] = np.trapz(frame.samples[i][start+(0*stepsize):start+(0+1)*stepsize])
+        g1[i] = np.trapz(frame.samples[i][start+(1*stepsize):start+(1+1)*stepsize])
+        g2[i] = np.trapz(frame.samples[i][start+(2*stepsize):start+(2+1)*stepsize])
+        g3[i] = np.trapz(frame.samples[i][start+(3*stepsize):start+(3+1)*stepsize])
+        g4[i] = np.trapz(frame.samples[i][start+(4*stepsize):start+(4+1)*stepsize])
+
+    frame['g0'] = g0
+    frame['g1'] = g1
+    frame['g2'] = g2
+    frame['g3'] = g3
+    frame['g4'] = g4
     return 0
+
 
 def get_species(df, X=[0, 1190,2737, 20000], Y=[0, 0.105, 0.148, 0.235]):
     species=np.array([-1]*len(df), dtype=np.int8)
@@ -229,6 +235,7 @@ def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/Th
         print('\n -------------------- \n frame', i+1, '/', (nBlocks+1), '\n --------------------')
         Frame, nTimesReset = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock, nTimesReset=nTimesReset)
         get_gates(Frame)
+        #get_gates2(Frame)
         get_species(Frame)
         if outpath!='':
             Frame.to_hdf(outpath+'%s.h5'%i, 'a')

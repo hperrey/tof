@@ -42,7 +42,7 @@ def get_species(df, X=[0, 1000,1600, 4400], Y=[0, 0.4, 0.36, 0.34]):
 def PSD(N, mode):
     if mode == "Analog":
         maxlg=4000
-        N_dummy = N.query('0<qdc_det0<%d and 0.2<(qdc_det0-qdc_sg_det0)/qdc_det0<0.8'%maxlg)
+        N_dummy = N.query('0<qdc_det0<%d and 0<(qdc_det0-qdc_sg_det0)/qdc_det0<1'%maxlg)
         lg = N_dummy.qdc_det0
         ps = (N_dummy.qdc_det0-N_dummy.qdc_sg_det0)/N_dummy.qdc_det0
     elif mode == "Digital":
@@ -53,47 +53,49 @@ def PSD(N, mode):
     plt.hexbin(lg, ps, gridsize=50)
     plt.colorbar()
     plt.title('%s QDC v Pulseshape heatmap'%mode)
+    plt.xlabel('longgate')
+    plt.ylabel('PS')
     plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/psd_hexbin.png'%mode, format='png')
     plt.show()
     #2:KDE
-    sns.kdeplot(lg, ps, n_levels=20, cmap="Greens", shade=True)
-    plt.title('%s Kernel density estimation plot'%mode)
-    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/psd_kde.png'%mode, format='png')
-    plt.show()
+    # sns.kdeplot(lg, ps, n_levels=20, cmap="Greens", shade=True)
+    # plt.title('%s Kernel density estimation plot'%mode)
+    # plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/psd_kde.png'%mode, format='png')
+    # plt.show()
 
     #3:Scatterplot
-    if mode == "Analog":
-        maxlg=4000
-        #Rejected
-        N_dummy = N.query('species==-1 and 0<qdc_det0<%d and 0.2<(qdc_det0-qdc_sg_det0)/qdc_det0<0.8'%maxlg)
-        lg = N_dummy.qdc_det0
-        ps = (N_dummy.qdc_det0-N_dummy.qdc_sg_det0)/N_dummy.qdc_det0
-        plt.scatter(lg, ps, s=5, alpha=0.6, label = "Rejected")
-        #Gammas
-        N_dummy = N.query('species==0 and 0<qdc_det0<8000 and 0.2<(qdc_det0-qdc_sg_det0)/qdc_det0<0.8')
-        lg = N_dummy.qdc_det0
-        ps = (N_dummy.qdc_det0-N_dummy.qdc_sg_det0)/N_dummy.qdc_det0
-        plt.scatter(lg, ps, s=5, alpha=0.6, label = "Gammas")
-        #Neutrons
-        N_dummy = N.query('species==1 and 0<qdc_det0<8000 and 0.2<(qdc_det0-qdc_sg_det0)/qdc_det0<0.8')
-        lg = N_dummy.qdc_det0
-        ps = (N_dummy.qdc_det0-N_dummy.qdc_sg_det0)/N_dummy.qdc_det0
-        plt.scatter(lg, ps, s=5, alpha=0.6, label = "Neutrons")
-    elif mode == "Digital":
-        maxlg=6000
-        #Rejected
-        N_dummy = N.query('species==-1 and 0<longgate<%d and 0<ps<0.4'%maxlg)
-        plt.scatter(N_dummy.longgate, N_dummy.ps, s=5, alpha=0.6, label = "Rejected")
-        #Gammas
-        N_dummy = N.query('species==0 and 0<longgate<%d and 0<ps<0.4'%maxlg)
-        plt.scatter(N_dummy.longgate, N_dummy.ps, s=5, alpha=0.6, label = "Gammas")
-        #Neutrons
-        N_dummy = N.query('species==1 and 0<longgate<%d and 0<ps<0.4'%maxlg)
-        plt.scatter(N_dummy.longgate, N_dummy.ps, s=5, alpha=0.6, label="Neutrons")
-    plt.title('%s Pulse shape discrimination scatterplot'%mode)
-    plt.legend()
-    plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/psd_scatter.png'%mode, format='png')
-    plt.show()
+    # if mode == "Analog":
+    #     maxlg=4000
+    #     #Rejected
+    #     N_dummy = N.query('species==-1 and 0<qdc_det0<%d and 0.2<(qdc_det0-qdc_sg_det0)/qdc_det0<0.8'%maxlg)
+    #     lg = N_dummy.qdc_det0
+    #     ps = (N_dummy.qdc_det0-N_dummy.qdc_sg_det0)/N_dummy.qdc_det0
+    #     plt.scatter(lg, ps, s=5, alpha=0.6, label = "Rejected")
+    #     #Gammas
+    #     N_dummy = N.query('species==0 and 0<qdc_det0<8000 and 0.2<(qdc_det0-qdc_sg_det0)/qdc_det0<0.8')
+    #     lg = N_dummy.qdc_det0
+    #     ps = (N_dummy.qdc_det0-N_dummy.qdc_sg_det0)/N_dummy.qdc_det0
+    #     plt.scatter(lg, ps, s=5, alpha=0.6, label = "Gammas")
+    #     #Neutrons
+    #     N_dummy = N.query('species==1 and 0<qdc_det0<8000 and 0.2<(qdc_det0-qdc_sg_det0)/qdc_det0<0.8')
+    #     lg = N_dummy.qdc_det0
+    #     ps = (N_dummy.qdc_det0-N_dummy.qdc_sg_det0)/N_dummy.qdc_det0
+    #     plt.scatter(lg, ps, s=5, alpha=0.6, label = "Neutrons")
+    # elif mode == "Digital":
+    #     maxlg=6000
+    #     #Rejected
+    #     N_dummy = N.query('species==-1 and 0<longgate<%d and 0<ps<0.4'%maxlg)
+    #     plt.scatter(N_dummy.longgate, N_dummy.ps, s=5, alpha=0.6, label = "Rejected")
+    #     #Gammas
+    #     N_dummy = N.query('species==0 and 0<longgate<%d and 0<ps<0.4'%maxlg)
+    #     plt.scatter(N_dummy.longgate, N_dummy.ps, s=5, alpha=0.6, label = "Gammas")
+    #     #Neutrons
+    #     N_dummy = N.query('species==1 and 0<longgate<%d and 0<ps<0.4'%maxlg)
+    #     plt.scatter(N_dummy.longgate, N_dummy.ps, s=5, alpha=0.6, label="Neutrons")
+    # plt.title('%s Pulse shape discrimination scatterplot'%mode)
+    # plt.legend()
+    # plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/%sResults/psd_scatter.png'%mode, format='png')
+    # plt.show()
 
 def QDC(N, mode):
     if mode == "Analog":
@@ -149,7 +151,7 @@ def ToF(N, mode):
     if mode == "Analog":
         left = 400
         right = 1100
-        dt = N.tdc_det0_yap0
+        dt = N.tdc_det0_yap3
     elif mode == "Digital":
         left = 20
         right = 120
@@ -233,16 +235,16 @@ if __name__ == "__main__":
     if mode == "A" or mode == "a":
         mode = "Analog"
         print("loading analog data")
-        #N=pta.load_data('../analog_tof/Data1160_cooked.root')#.head(n=20000)
-        N=pd.read_hdf('1160_species.h5')
+        N=pta.load_data('data/2018-12-17/Data1265_cooked.root')#.head(n=20000)
+        #N=pd.read_hdf('1160_species.h5')
         #print('Getting psd data')
         #get_species(N)
 
     if mode == "D" or mode == "d":
         mode = "Digital"
         print("loading and processing digitized data")
-        N=pd.read_hdf('data/2018-12-13/N_cooked.h5')
-        Y=pd.read_hdf('data/2018-12-13/Y_cooked.h5')
+        N=pd.read_hdf('data/2018-12-17/reclen1200_posttrig50/N_cooked.h5')
+        Y=pd.read_hdf('data/2018-12-17/reclen1200_posttrig50/Y_cooked.h5')
         #=====Get more info====#
         #tof.get_gates(N)
         #tof.get_species(N)
