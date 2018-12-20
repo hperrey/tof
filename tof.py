@@ -4,12 +4,12 @@ import csv
 import sys
 from itertools import islice
 import time
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from math import sqrt
 from math import atan
 
 
-def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=0):
+def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=0, no_skip=False):
     #Get number of lines
     if nlines == 0:
         nlines=sum(1 for line in (open(filename)))
@@ -61,7 +61,7 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesRes
                     samples[event_index] -= baseline
                     #check the polarity and check if the pulse crosses threshold and if it is properly contained
                     peak_index[event_index] = np.argmax(np.absolute(samples[event_index]))
-                    if np.absolute(samples[event_index][peak_index[event_index]]) < threshold:
+                    if (np.absolute(samples[event_index][peak_index[event_index]]) < threshold and no_skip==False):
                         continue
                     else:
                         if samples[event_index][peak_index[event_index]] < 0:
@@ -70,7 +70,7 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesRes
                         height[event_index] = samples[event_index][peak_index[event_index]]
                         refpoint_rise[event_index], refpoint_fall[event_index] = cfd(samples[event_index], frac, peak_index[event_index])
                         #throw away events marked problematic by cfd alg. and events without room for tail.
-                        if refpoint_rise[event_index]<0 or  refpoint_fall[event_index]<0:
+                        if ((refpoint_rise[event_index]<0 and no_skip==False) or  (refpoint_fall[event_index]<0 and no_skip==False)):
                             continue
                         event_index += 1
         #throw away empty rows.
@@ -125,30 +125,6 @@ def get_gates(frame, lg=500, sg=55, offset=10):
     frame['theta']=theta
     return 0
 
-def get_gates2(frame, stepsize=20, offset=10):
-    g0 = [0]*len(frame)
-    g1 = [0]*len(frame)
-    g2 = [0]*len(frame)
-    g3 = [0]*len(frame)
-    g4 = [0]*len(frame)
-    for i in range(0, len(frame)):
-        k = round(100*i/len(frame))
-        sys.stdout.write("\rCalculating gates %d%%" % k)
-        sys.stdout.flush()
-
-        start = frame.peak_index[i]-offset
-        g0[i] = np.trapz(frame.samples[i][start+(0*stepsize):start+(0+1)*stepsize])
-        g1[i] = np.trapz(frame.samples[i][start+(1*stepsize):start+(1+1)*stepsize])
-        g2[i] = np.trapz(frame.samples[i][start+(2*stepsize):start+(2+1)*stepsize])
-        g3[i] = np.trapz(frame.samples[i][start+(3*stepsize):start+(3+1)*stepsize])
-        g4[i] = np.trapz(frame.samples[i][start+(4*stepsize):start+(4+1)*stepsize])
-
-    frame['g0'] = g0
-    frame['g1'] = g1
-    frame['g2'] = g2
-    frame['g3'] = g3
-    frame['g4'] = g4
-    return 0
 
 
 def get_species(df, X=[0, 1190,2737, 20000], Y=[0, 0.105, 0.148, 0.235]):
@@ -218,7 +194,7 @@ def cfd(samples, frac, peak_index):
     return tfine_rise, tfine_fall
 
 
-def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/ThesisWork/code/tof/data/'):
+def get_frames(filename, threshold, frac=0.3, no_skip=False, outpath='/home/rasmus/Documents/ThesisWork/code/tof/data/'):
     time0 = time.time()
     nlines=sum(1 for line in (open(filename)))
     nlinesBlock = 2**21 # lines per block
@@ -233,9 +209,8 @@ def get_frames(filename, threshold, frac=0.3, outpath='/home/rasmus/Documents/Th
     nTimesReset = 0
     for i in range(0, (nBlocks+1)):
         print('\n -------------------- \n frame', i+1, '/', (nBlocks+1), '\n --------------------')
-        Frame, nTimesReset = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock, nTimesReset=nTimesReset)
+        Frame, nTimesReset = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock, nTimesReset=nTimesReset, no_skip=no_skip)
         get_gates(Frame)
-        #get_gates2(Frame)
         get_species(Frame)
         if outpath!='':
             Frame.to_hdf(outpath+'%s.h5'%i, 'a')
