@@ -8,6 +8,60 @@ import time
 from math import sqrt
 from math import atan
 
+def load_data(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=0, no_skip=False, chunksize=5000, outpath='data/chunk'):
+    Chunks = pd.read_csv(filename, header=None, usecols=[5,7], names=['timestamp', 'samples'], chunksize=chunksize)
+    count=0
+    for df in Chunks:
+        print("Chunk number", count)
+        df['samples'] = df.samples.str.split().apply(lambda x: np.array(x, dtype=np.int16))
+
+        samples = np.array([None]*df.shape[0])
+        timestamp = np.array([0]*df.shape[0], dtype=np.int64)
+        amplitude = np.array([0]*df.shape[0], dtype=np.int16)
+        peak_index = np.array([0]*df.shape[0], dtype=np.int16)
+        print('len peak_index ',len(peak_index))
+        valid_event = np.array([True]*df.shape[0], dtype=np.int16)
+        ref_point_rise = np.array([0]*df.shape[0], dtype=np.int32)
+        ref_point_fall = np.array([0]*df.shape[0], dtype=np.int32)
+        nTimesReset = 0
+
+        for i in range(0, df.shape[0]):
+            u = chunksize*count + i
+            k = round(100*i/df.shape[0])
+            sys.stdout.write("\rGenerating dataframe %d%%" % k)
+            sys.stdout.flush()
+
+            Baseline = int(round(np.average(df.samples[u][0:20])))
+            peak_index[i] = np.argmin(df.samples[u])
+
+            #Check that only events above threshold are accepted and that first 20 samples can give a good baseline.
+            if abs(df.samples[u][peak_index[i]] - Baseline) < threshold or (max(df.samples[u][0:20])-min(df.samples[u][0:20])) > 3:
+                valid_event[i] = False
+                continue
+            else:
+                samples[i] = df['samples'][u] - Baseline
+                ref_point_rise[i], ref_point_fall[i] = cfd(samples=samples[i], frac=frac, peak_index=peak_index[i])
+                amplitude[i] = samples[i][peak_index[i]]
+                timestamp[i] = df['timestamp'][u]
+                if i > 0:
+                    if timestamp[i] < timestamp[i-1]-nTimesReset*2147483647:
+                        nTimesReset += 1
+                    timestamp[i] += nTimesReset*2147483647
+        df['timestamp'] = timestamp
+        df['samples'] = samples
+        df['valid_event'] = valid_event
+        df['amplitude'] = amplitude
+        df['peak_index'] = peak_index
+        df['ref_point_rise'] = ref_point_rise
+        df['ref_point_fall'] = ref_point_fall
+        df = df.query('valid_event == True').reset_index()
+        df.to_hdf(outpath+'.h5', key='key%s'%count)
+        df = df.drop('samples', axis = 1)
+        df.to_hdf(outpath+'cooked.h5', key='key%s'%count)
+        count += 1
+
+
+
 
 def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=0, no_skip=False):
     #Get number of lines
@@ -159,18 +213,56 @@ def get_species(df, X=[0, 1190,2737, 20000], Y=[0, 0.105, 0.148, 0.235]):
 
 def cfd(samples, frac, peak_index):
     peak = samples[peak_index]
+    print('frac*peak = %d0'%(peak*frac))
     rise_index = 0
     fall_index = 0
     #find the cfd rise point
     for i in range(0, peak_index):
-        if samples[i] > frac*peak:
+        if samples[i] < frac * peak:
+            rise_index = i
+            break
+        else:
+            rise_index = 0
+        #find the cfd fall point
+        for i in range(peak_index, len(samples)):
+            if samples[i] > frac*peak:
+                fall_index = i
+                break
+            else:
+                fall_index = 0
+        slope_rise = (samples[rise_index] - samples[rise_index-1])#divided by 1ns
+        slope_fall = (samples[fall_index] - samples[fall_index-1])#divided by 1ns
+        #slope equal 0 is a sign of error. fx a pulse located
+        #in first few bins and already above threshold in bin 0.
+        #rise
+        if slope_rise == 0:
+            print('\nslope == 0!!!!\nindex=', rise_index,'\n', samples[rise_index-5:rise_index+5])
+            tfine_rise = -1
+        else:
+            tfine_rise = 1000*(rise_index-1) + int(round(1000*(peak*frac-samples[rise_index-1])/slope_rise))
+            #fall
+        if slope_fall == 0:
+            print('\nslope == 0!!!!\nindex=', fall_index,'\n', samples[fall_index-5:fall_index+5])
+            tfine_fall = -1
+        else:
+            tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
+        return tfine_rise, tfine_fall
+
+
+def cfd(samples, frac, peak_index):
+    peak = samples[peak_index]
+    rise_index = 0
+    fall_index = 0
+    #find the cfd rise point
+    for i in range(0, peak_index):
+        if samples[i] < frac * peak:
             rise_index = i
             break
         else:
             rise_index = 0
     #find the cfd fall point
     for i in range(peak_index, len(samples)):
-        if samples[i] < frac*peak:
+        if samples[i] > frac*peak:
             fall_index = i
             break
         else:
