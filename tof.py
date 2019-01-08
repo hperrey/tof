@@ -68,6 +68,8 @@ def load_data(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=
         tdummy1=time.time()
         print('chunk ', count, ' processed in ', tdummy1-tdummy2, ' seconds'  )
         count += 1
+    t3 = time.time()
+    print("total processing time = ", t3-t0)
 
 
 
