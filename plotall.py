@@ -236,6 +236,7 @@ if __name__ == "__main__":
         mode = "Analog"
         print("loading analog data")
         N=pta.load_data('data/2018-12-17/Data1265_cooked.root')#.head(n=20000)
+        #N=pta.load_data('/home/rasmus/Documents/ThesisWork/code/analog_tof/Data1160_cooked.root')#.head(n=20000)
         #N=pd.read_hdf('1160_species.h5')
         #print('Getting psd data')
         #get_species(N)

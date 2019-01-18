@@ -1,28 +1,49 @@
+import time
 import numpy as np
 import pandas as pd
+import dask.dataframe as dd
 import csv
 import sys
-from itertools import islice
-import time
-#import matplotlib.pyplot as plt
-from math import sqrt
-from math import atan
 
-def load_data(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=0, no_skip=False, chunksize=2**18, outpath='data/chunk'):
-    t0 = time.time() 
-    print("Scanning the file to get number of chunks:")
-    nChunks = int(round(0.5 + sum(1 for row in open(filename, 'r'))/chunksize))
-    t1 = time.time()
-    print("Scan time: ", t1-t0, ' seconds')
-    print("Will generate ", nChunks)
-    Chunks = pd.read_csv(filename, header=None, usecols=[5,7], names=['timestamp', 'samples'], chunksize=chunksize)
+
+
+def dask_chewer(filename, outpath):
+    A = dd.read_csv(filename, header=None, names=['a','b','c','index','e','timestamp','g', 'samples'])
+    A=A[['index','timestamp','samples']]
+    A.compute()
+    A.to_hdf(outpath, 'a')
+
+
+def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**16, outpath='data/chunk', use_dask=False, daskoutpath='data/daskframe.h5'):
+    """load_data()\nArguments and default inputs: \nfilename: path to datafile, \nthreshold: absolute value, unit ADC count, range 0 to 1023, \nskip_badevents=True: Wether to skip events where baseline was noisy or threshold was not surpassed, \nchunksize=2**16: the size of the chunks. for 8gB RAM 2**16-2**17 seems to be the limit, \noutpath='data/chunk': path to outputfile location. , \nuse_dask=False, \ndaskoutpath='data/daskframe.h5'):"""
+    t0 = time.time()
+    if use_dask:
+        print("processig file with dask")
+        dask_chewer(filename, daskoutpath)
+        print("opening dask generated dataframe")
+        Chunks=pd.read_hdf(daskoutpath, chunksize=chunksize)
+        t1 = time.time()
+        print("dask processing time: ", t1-t0, ' seconds')
+    else:
+        print("Scanning the file to get number of chunks:")
+        nChunks = int(round(0.5 + sum(1 for row in open(filename, 'r'))/chunksize))
+        t1 = time.time()
+        print("Scan time: ", t1-t0, ' seconds')
+        print("Will generate ", nChunks)
+        Chunks = pd.read_csv(filename, header=None, usecols=[5,7], names=['timestamp', 'samples'], chunksize=chunksize)
     count=0
     tdummy1=t1
+    nTimesReset = 0
+    
     for df in Chunks:
+        df= df.reset_index()
         tdummy2=tdummy1
         print("Chunk number", count + 1, "/", nChunks)
         df['samples'] = df.samples.str.split().apply(lambda x: np.array(x, dtype=np.int16))
 
+        #dummy variable used to compare consecutive timestamps. reset to zero when processing a new chunk of the df
+        timestampDummy = 0
+        #Arrays for the data we will put into the df chunks columns.
         samples = np.array([None]*df.shape[0])
         timestamp = np.array([0]*df.shape[0], dtype=np.int64)
         amplitude = np.array([0]*df.shape[0], dtype=np.int16)
@@ -30,30 +51,32 @@ def load_data(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=
         valid_event = np.array([True]*df.shape[0], dtype=np.int16)
         ref_point_rise = np.array([0]*df.shape[0], dtype=np.int32)
         ref_point_fall = np.array([0]*df.shape[0], dtype=np.int32)
-        nTimesReset = 0
 
         for i in range(0, df.shape[0]):
-            u = chunksize*count + i
+            #u = chunksize*count + i
             k = round(100*i/df.shape[0])
             sys.stdout.write("\rGenerating dataframe %d%%" % k)
             sys.stdout.flush()
 
-            Baseline = int(round(np.average(df.samples[u][0:20])))
-            peak_index[i] = np.argmin(df.samples[u])
+            Baseline = int(round(np.average(df.samples[i][0:20])))
+            peak_index[i] = np.argmin(df.samples[i])
 
-            #Check that only events above threshold are accepted and that first 20 samples can give a good baseline.
-            if abs(df.samples[u][peak_index[i]] - Baseline) < threshold or (max(df.samples[u][0:20])-min(df.samples[u][0:20])) > 3:
+            #Accept only only events above threshold and for which the first 20 samples can give a good baseline.
+            if (skip_badevents==True) and (abs(df.samples[i][peak_index[i]] - Baseline) < threshold or (max(df.samples[i][0:20])-min(df.samples[i][0:20])) > 3):
                 valid_event[i] = False
                 continue
             else:
-                samples[i] = df['samples'][u] - Baseline
+                #subtract baseline, get cfd refpoint and get pulse amplitude.
+                samples[i] = df['samples'][i] - Baseline
                 ref_point_rise[i], ref_point_fall[i] = cfd(samples=samples[i], frac=frac, peak_index=peak_index[i])
                 amplitude[i] = samples[i][peak_index[i]]
-                timestamp[i] = df['timestamp'][u]
-                if i > 0:
-                    if timestamp[i] < timestamp[i-1]-nTimesReset*2147483647:
-                        nTimesReset += 1
-                    timestamp[i] += nTimesReset*2147483647
+                #Correct the timestamp resetting done by Wavedump at t=2**32
+                if ((df['timestamp'][i] + nTimesReset*2147483647) < timestampDummy):
+                    nTimesReset += 1
+                timestamp[i] = df['timestamp'][i] + nTimesReset*2147483647
+                timestampDummy = timestamp[i]
+
+        #Here we add the new columns to the chunk
         df['timestamp'] = timestamp
         df['samples'] = samples
         df['valid_event'] = valid_event
@@ -61,15 +84,16 @@ def load_data(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=
         df['peak_index'] = peak_index
         df['ref_point_rise'] = ref_point_rise
         df['ref_point_fall'] = ref_point_fall
+        #We Only keep events that are valid
         df = df.query('valid_event == True').reset_index()
         df.to_hdf(outpath+'.h5', key='key%s'%count)
         df = df.drop('samples', axis = 1)
         df.to_hdf(outpath+'cooked.h5', key='key%s'%count)
         tdummy1=time.time()
-        print('chunk ', count, ' processed in ', tdummy1-tdummy2, ' seconds'  )
+        print('chunk ', count+1, ' processed in ', tdummy1-tdummy2, ' seconds'  )
         count += 1
-    t3 = time.time()
-    print("total processing time = ", t3-t0)
+    tf = time.time()
+    print("total processing time: ", tf-t0)
 
 
 
@@ -154,12 +178,9 @@ def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesRes
                          'refpoint_rise' : refpoint_rise,
                          'refpoint_fall' : refpoint_fall}), nTimesReset
 
-def get_gates(frame, lg=500, sg=55, offset=10):
+def get_gates(frame, lg=500, sg=55, offset=10, mode=0):
     longgate=np.array([0]*len(frame), dtype=np.int16)
     shortgate=np.array([0]*len(frame), dtype=np.int16)
-    pulsetail=np.array([0]*len(frame), dtype=np.int16)
-    theta=np.array([0]*len(frame), dtype=np.int16)
-#    species=np.array([-1]*len(frame), dtype=np.int8)
     for i in range(0, len(frame)):
         k = round(100*i/len(frame))
         sys.stdout.write("\rCalculating gates %d%%" % k)
@@ -167,27 +188,28 @@ def get_gates(frame, lg=500, sg=55, offset=10):
 
         #start = int(round(frame.refpoint_rise[i]/1000))-offset
         start = frame.peak_index[i]-offset
-        longgate[i] = np.trapz(frame.samples[i][start:start+lg])
-        shortgate[i] = np.trapz(frame.samples[i][start:start+sg])
-        theta[i] = atan(2*frame.height[i]/frame.refpoint_fall[i]-frame.refpoint_rise[i])
+        if mode == 0:
+            longgate[i] = abs(np.trapz(frame.samples[i][start:start+lg]))
+            shortgate[i] = abs(np.trapz(frame.samples[i][start:start+sg]))
+        elif mode == 1:
+            longgate[i] = abs( np.trapz( frame.samples[i][start : start + lg].clip(max = 0) ) )
+            shortgate[i] = abs( np.trapz( frame.samples[i][start : start + sg].clip(max = 0) ) )
+        elif mode == 2:
+            longgate[i] = abs( np.trapz( np.absolute( frame.samples[i][start : start + lg] ) ) )
+            shortgate[i] = abs( np.trapz( np.absolute( frame.samples[i][start : start + sg] ) ) )
 
         #send weird events to quarantine bins
-        if shortgate[i]>longgate[i]:
+        if shortgate[i] > longgate[i]:
             #workaround. need to deal with reflections properly!
-            longgate[i]=20000
-            shortgate[i]=20000
-        if longgate[i]<=0 or shortgate[i]<=0:
-            longgate[i]=20000
-            shortgate[i]=20000
-
-        #tail
-        pulsetail[i] = np.trapz(frame.samples[i][int(frame.refpoint_fall[i]/1000):int(frame.refpoint_fall[i]/1000)+lg])
+            longgate[i] = 40000
+            shortgate[i] = 40000
+        if longgate[i] <= 0 or shortgate[i]<=0:
+            longgate[i] = 40000
+            shortgate[i] = 40000
 
     frame['ps'] = (longgate-shortgate)/longgate
     frame['longgate']=longgate
     frame['shortgate']=shortgate
-    frame['pulsetail']=pulsetail
-    frame['theta']=theta
     return 0
 
 
@@ -224,44 +246,6 @@ def get_species(df, X=[0, 1190,2737, 20000], Y=[0, 0.105, 0.148, 0.235]):
 
 def cfd(samples, frac, peak_index):
     peak = samples[peak_index]
-    print('frac*peak = %d0'%(peak*frac))
-    rise_index = 0
-    fall_index = 0
-    #find the cfd rise point
-    for i in range(0, peak_index):
-        if samples[i] < frac * peak:
-            rise_index = i
-            break
-        else:
-            rise_index = 0
-        #find the cfd fall point
-        for i in range(peak_index, len(samples)):
-            if samples[i] > frac*peak:
-                fall_index = i
-                break
-            else:
-                fall_index = 0
-        slope_rise = (samples[rise_index] - samples[rise_index-1])#divided by 1ns
-        slope_fall = (samples[fall_index] - samples[fall_index-1])#divided by 1ns
-        #slope equal 0 is a sign of error. fx a pulse located
-        #in first few bins and already above threshold in bin 0.
-        #rise
-        if slope_rise == 0:
-            print('\nslope == 0!!!!\nindex=', rise_index,'\n', samples[rise_index-5:rise_index+5])
-            tfine_rise = -1
-        else:
-            tfine_rise = 1000*(rise_index-1) + int(round(1000*(peak*frac-samples[rise_index-1])/slope_rise))
-            #fall
-        if slope_fall == 0:
-            print('\nslope == 0!!!!\nindex=', fall_index,'\n', samples[fall_index-5:fall_index+5])
-            tfine_fall = -1
-        else:
-            tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
-        return tfine_rise, tfine_fall
-
-
-def cfd(samples, frac, peak_index):
-    peak = samples[peak_index]
     rise_index = 0
     fall_index = 0
     #find the cfd rise point
@@ -288,13 +272,50 @@ def cfd(samples, frac, peak_index):
         tfine_rise = -1
     else:
         tfine_rise = 1000*(rise_index-1) + int(round(1000*(peak*frac-samples[rise_index-1])/slope_rise))
-    #fall
+        #fall
     if slope_fall == 0:
         print('\nslope == 0!!!!\nindex=', fall_index,'\n', samples[fall_index-5:fall_index+5])
         tfine_fall = -1
     else:
         tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
     return tfine_rise, tfine_fall
+
+
+# def cfd(samples, frac, peak_index):
+#     peak = samples[peak_index]
+#     rise_index = 0
+#     fall_index = 0
+#     #find the cfd rise point
+#     for i in range(0, peak_index):
+#         if samples[i] < frac * peak:
+#             rise_index = i
+#             break
+#         else:
+#             rise_index = 0
+#     #find the cfd fall point
+#     for i in range(peak_index, len(samples)):
+#         if samples[i] > frac*peak:
+#             fall_index = i
+#             break
+#         else:
+#             fall_index = 0
+#     slope_rise = (samples[rise_index] - samples[rise_index-1])#divided by 1ns
+#     slope_fall = (samples[fall_index] - samples[fall_index-1])#divided by 1ns
+#     #slope equal 0 is a sign of error. fx a pulse located
+#     #in first few bins and already above threshold in bin 0.
+#     #rise
+#     if slope_rise == 0:
+#         print('\nslope == 0!!!!\nindex=', rise_index,'\n', samples[rise_index-5:rise_index+5])
+#         tfine_rise = -1
+#     else:
+#         tfine_rise = 1000*(rise_index-1) + int(round(1000*(peak*frac-samples[rise_index-1])/slope_rise))
+#     #fall
+#     if slope_fall == 0:
+#         print('\nslope == 0!!!!\nindex=', fall_index,'\n', samples[fall_index-5:fall_index+5])
+#         tfine_fall = -1
+#     else:
+#         tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
+#     return tfine_rise, tfine_fall
 
 
 def get_frames(filename, threshold, frac=0.3, no_skip=False, outpath='/home/rasmus/Documents/ThesisWork/code/tof/data/'):
@@ -334,22 +355,23 @@ def get_frames(filename, threshold, frac=0.3, no_skip=False, outpath='/home/rasm
 
 
 def tof_spectrum(ne213, yap, fac=8, tol_left=0, tol_right=120):
+    tol_left = tol_left * 1000
+    tol_right = tol_right * 1000
     ymin=0
     tof_hist = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
     dt=np.array([0]*len(ne213), dtype=np.int32)
-    #tof_hist1 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
-    #tof_hist2 = np.histogram([], tol_left+tol_right, range=(tol_left, tol_right))
 
-    #for ne in range(0, len(ne213)):
     counter=0
+    #loop through all ne213 events
     for row in ne213.itertuples():
         ne=row[0]
         counter += 1
         k = 100*counter/len(ne213)
         sys.stdout.write("\rGenerating tof spectrum %d%%" % k)
         sys.stdout.flush()
+        #loop from min yap index until break condition applies
         for y in range(ymin, len(yap)):
-            Delta=int(round(((fac*1000*ne213.timestamp[ne]+ne213.refpoint_rise[ne])-(fac*1000*yap.timestamp[y]+yap.refpoint_rise[y]))/1000))
+            Delta = (fac*1000*ne213.timestamp[ne]+ne213.ref_point_rise[ne]) - (fac*1000*yap.timestamp[y]+yap.ref_point_rise[y])
             if Delta > tol_right:
                 ymin = y
             if tol_left <= Delta < tol_right:
