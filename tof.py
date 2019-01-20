@@ -7,30 +7,36 @@ import sys
 
 
 
-def dask_chewer(filename, outpath):
-    A = dd.read_csv(filename, header=None, names=['a','b','c','index','e','timestamp','g', 'samples'])
-    A=A[['index','timestamp','samples']]
-    A.compute()
-    A.to_hdf(outpath, 'a')
-
-
-def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**16, outpath='data/chunk', use_dask=False, daskoutpath='data/daskframe.h5'):
-    """load_data()\nArguments and default inputs: \nfilename: path to datafile, \nthreshold: absolute value, unit ADC count, range 0 to 1023, \nskip_badevents=True: Wether to skip events where baseline was noisy or threshold was not surpassed, \nchunksize=2**16: the size of the chunks. for 8gB RAM 2**16-2**17 seems to be the limit, \noutpath='data/chunk': path to outputfile location. , \nuse_dask=False, \ndaskoutpath='data/daskframe.h5'):"""
+def dask_chewer(filename, outpath='data/daskframe.h5'):
     t0 = time.time()
-    if use_dask:
-        print("processig file with dask")
-        dask_chewer(filename, daskoutpath)
-        print("opening dask generated dataframe")
-        Chunks=pd.read_hdf(daskoutpath, chunksize=chunksize)
-        t1 = time.time()
-        print("dask processing time: ", t1-t0, ' seconds')
-    else:
-        print("Scanning the file to get number of chunks:")
-        nChunks = int(round(0.5 + sum(1 for row in open(filename, 'r'))/chunksize))
-        t1 = time.time()
-        print("Scan time: ", t1-t0, ' seconds')
-        print("Will generate ", nChunks)
-        Chunks = pd.read_csv(filename, header=None, usecols=[5,7], names=['timestamp', 'samples'], chunksize=chunksize)
+    A = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['idx','timestamp', 'samples'], dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=25*10**6)
+    A=A[['idx','timestamp','samples']]
+    A['samples'] = A['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=A['samples'])
+    A['samples'] = A['samples'].apply(lambda x: x - int(round(np.average(x[0:20]))), meta=A['samples'])
+    A['amplitude'] = A['samples'].apply(lambda x: np.max(np.absolute(x)), meta=A['samples'])
+    A['peak_index'] = A['samples'].apply(lambda x: np.argmax(np.absolute(x)), meta=A['samples'])
+    #A['lg'] = A['samples'].apply(lambda x: np.trapz(x[A['peak_index']-10: A['peak_index']+490]), meta=A)
+#    A['rise'] = A['samples'].apply(, meta=A['samples'])
+    A.to_parquet(outpath, engine='pyarrow')
+    t1=time.time()
+    print('processing time',t1-t0)
+    return A
+#A=dask_chewer('data/2019-01-19/N3.txt', outpath='data/2019-01-19/daskframe.parquet')
+#A=dask_chewer('data/2018-12-26/set1/N3.txt', outpath='data/2019-01-19/daskframe.parquet')
+  
+
+
+
+
+def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**16, outpath='data/chunk'):
+    """load_data()\nArguments and default inputs: \nfilename: path to datafile, \nthreshold: absolute value, unit ADC count, range 0 to 1023, \nskip_badevents=True: Wether to skip events where baseline was noisy or threshold was not surpassed, \nchunksize=2**16: the size of the chunks. for 8gB RAM 2**16-2**17 seems to be the limit, \noutpath='data/chunk': path to outputfile location.:"""
+    t0 = time.time()
+    print("Scanning the file to get number of chunks:")
+    nChunks = int(round(0.5 + sum(1 for row in open(filename, 'r'))/chunksize))
+    t1 = time.time()
+    print("Scan time: ", t1-t0, ' seconds')
+    print("Will generate ", nChunks)
+    Chunks = pd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['idx', 'timestamp', 'samples'], chunksize=chunksize)
     count=0
     tdummy1=t1
     nTimesReset = 0
