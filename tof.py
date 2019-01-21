@@ -40,7 +40,7 @@ def process_daskframe(filename, frac=0.3, lg=500, sg=55, offset=10, mode=2):
     fall = np.array([0]*L, dtype=np.int32)
     longgate = np.array([0]*L, dtype=np.int32)
     shortgate = np.array([0]*L, dtype=np.int32)
-    ps = np.array([0]*L, dtype=np.int32)
+    ps = np.array([0]*L, dtype=np.float32)
 
     #loop through df and populate arrays
     for i in range(0, L):
