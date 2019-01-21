@@ -9,7 +9,8 @@ import sys
 
 def dask_chewer(filename, outpath='data/daskframe.h5'):
     t0 = time.time()
-    A = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['idx','timestamp', 'samples'], dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=25*10**6)
+    A = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['idx','timestamp', 'samples'],
+                    dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=25*10**6)
     A=A[['idx','timestamp','samples']]
     A['samples'] = A['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=A['samples'])
     A['samples'] = A['samples'].apply(lambda x: x - int(round(np.average(x[0:20]))), meta=A['samples'])
@@ -23,8 +24,6 @@ def dask_chewer(filename, outpath='data/daskframe.h5'):
     return A
 #A=dask_chewer('data/2019-01-19/N3.txt', outpath='data/2019-01-19/daskframe.parquet')
 #A=dask_chewer('data/2018-12-26/set1/N3.txt', outpath='data/2019-01-19/daskframe.parquet')
-  
-
 
 
 
@@ -102,87 +101,6 @@ def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**1
     print("total processing time: ", tf-t0)
 
 
-
-
-def basic_framer(filename, threshold, frac=0.3, nlines=0, startline=0, nTimesReset=0, no_skip=False):
-    #Get number of lines
-    if nlines == 0:
-        nlines=sum(1 for line in (open(filename)))
-    nevents = int(nlines/8)
-    samples = [None]*nevents
-    timestamp = np.array([0]*nevents, dtype=np.int64)
-    refpoint_rise = np.array([0]*nevents, dtype=np.int32)
-    refpoint_fall = np.array([0]*nevents, dtype=np.int32)
-    peak_index = np.array([0]*nevents, dtype=np.int16)
-    height = np.array([0]*nevents, dtype=np.int16)
-    acq_window = 0
-    try:
-        with open(filename, newline='\n') as f:
-            reader = csv.reader(f)
-            line_index = startline
-            event_index = 0
-            idx=0
-            #Scan forwards through the file until you are at the provided start time
-            if line_index > 0:
-                for row in reader:
-                    if idx == startline-1:
-                        break
-                    else:
-                        idx+=1
-            #go to the startline
-            for row in reader:
-                line_index +=1
-                #only go through lines belonging to the current block
-                if line_index >= startline+nlines:
-                    break
-                if line_index%8 == 6:
-                    k = 100*(line_index-startline)/nlines+1
-                    sys.stdout.write("\rGenerating dataframe %d%%" % k)
-                    sys.stdout.flush()
-                    dummytimestamp = int(row[0].split()[3])
-                    if event_index > 0:
-                        if dummytimestamp < timestamp[event_index-1]-nTimesReset*2147483647:
-                            nTimesReset += 1
-                            #print('\ntime reset!\n')
-                    timestamp[event_index]= (dummytimestamp+nTimesReset*2147483647)
-                if line_index%8 == 0:#every eigth row is the data
-                    dummy = row[0].split()
-                    dummy=[int(i) for i in dummy]
-                    samples[event_index] = np.array(dummy ,dtype=np.int16)
-                    #B is the number of samples used to calculate baseline
-                    #We don't care about events that have large peaks or noise in this interval
-                    B = 20
-                    baseline = int(sum(samples[event_index][0:B])/B)
-                    samples[event_index] -= baseline
-                    #check the polarity and check if the pulse crosses threshold and if it is properly contained
-                    peak_index[event_index] = np.argmax(np.absolute(samples[event_index]))
-                    if (np.absolute(samples[event_index][peak_index[event_index]]) < threshold and no_skip==False):
-                        continue
-                    else:
-                        if samples[event_index][peak_index[event_index]] < 0:
-                            samples[event_index] *= -1
-                        #get pulse height and pulse edge bins
-                        height[event_index] = samples[event_index][peak_index[event_index]]
-                        refpoint_rise[event_index], refpoint_fall[event_index] = cfd(samples[event_index], frac, peak_index[event_index])
-                        #throw away events marked problematic by cfd alg. and events without room for tail.
-                        if ((refpoint_rise[event_index]<0 and no_skip==False) or  (refpoint_fall[event_index]<0 and no_skip==False)):
-                            continue
-                        event_index += 1
-        #throw away empty rows.
-        samples = samples[0:event_index]
-        timestamp = timestamp[0:event_index]
-        height = height[0:event_index]
-        peak_index = peak_index[0:event_index]
-        refpoint_rise = refpoint_rise[0:event_index]
-        refpoint_fall = refpoint_fall[0:event_index]
-    except IOError:
-        return None
-    return pd.DataFrame({'timestamp': timestamp,
-                         'samples' : samples,
-                         'height' : height,
-                         'peak_index':peak_index,
-                         'refpoint_rise' : refpoint_rise,
-                         'refpoint_fall' : refpoint_fall}), nTimesReset
 
 def get_gates(frame, lg=500, sg=55, offset=10, mode=0):
     longgate=np.array([0]*len(frame), dtype=np.int16)
@@ -287,76 +205,7 @@ def cfd(samples, frac, peak_index):
     return tfine_rise, tfine_fall
 
 
-# def cfd(samples, frac, peak_index):
-#     peak = samples[peak_index]
-#     rise_index = 0
-#     fall_index = 0
-#     #find the cfd rise point
-#     for i in range(0, peak_index):
-#         if samples[i] < frac * peak:
-#             rise_index = i
-#             break
-#         else:
-#             rise_index = 0
-#     #find the cfd fall point
-#     for i in range(peak_index, len(samples)):
-#         if samples[i] > frac*peak:
-#             fall_index = i
-#             break
-#         else:
-#             fall_index = 0
-#     slope_rise = (samples[rise_index] - samples[rise_index-1])#divided by 1ns
-#     slope_fall = (samples[fall_index] - samples[fall_index-1])#divided by 1ns
-#     #slope equal 0 is a sign of error. fx a pulse located
-#     #in first few bins and already above threshold in bin 0.
-#     #rise
-#     if slope_rise == 0:
-#         print('\nslope == 0!!!!\nindex=', rise_index,'\n', samples[rise_index-5:rise_index+5])
-#         tfine_rise = -1
-#     else:
-#         tfine_rise = 1000*(rise_index-1) + int(round(1000*(peak*frac-samples[rise_index-1])/slope_rise))
-#     #fall
-#     if slope_fall == 0:
-#         print('\nslope == 0!!!!\nindex=', fall_index,'\n', samples[fall_index-5:fall_index+5])
-#         tfine_fall = -1
-#     else:
-#         tfine_fall = 1000*(fall_index-1) + int(round(1000*(peak*frac-samples[fall_index-1])/slope_fall))
-#     return tfine_rise, tfine_fall
 
-
-def get_frames(filename, threshold, frac=0.3, no_skip=False, outpath='/home/rasmus/Documents/ThesisWork/code/tof/data/'):
-    time0 = time.time()
-    nlines=sum(1 for line in (open(filename)))
-    nlinesBlock = 2**21 # lines per block
-    #Number of full blocks
-    nBlocks = int(nlines/nlinesBlock)
-    #Number of lines in the final block
-    nlinesBlockF = (nlines%nlinesBlock)
-    Blocklines =[nlinesBlock]*(nBlocks+1)
-    Blocklines[-1] = nlinesBlockF
-    #we need nBlocks +1 dataframes
-    #FrameList=[0]*len(Blocklines)
-    nTimesReset = 0
-    for i in range(0, (nBlocks+1)):
-        print('\n -------------------- \n frame', i+1, '/', (nBlocks+1), '\n --------------------')
-        Frame, nTimesReset = basic_framer(filename, threshold, frac, nlines=Blocklines[i], startline=i*nlinesBlock, nTimesReset=nTimesReset, no_skip=no_skip)
-        get_gates(Frame)
-        get_species(Frame)
-        if outpath!='':
-            Frame.to_hdf(outpath+'%s.h5'%i, 'a')
-    time1 = time.time()
-    deltaT=time1-time0
-
-    #make the cooked frame
-    D=[0]*(nBlocks+1)
-    for i in range(0, (nBlocks+1)):
-        D[i]=pd.read_hdf(outpath+'%d.h5'%i)
-        D[i].drop('samples', axis=1)
-    D=pd.concat(D).reset_index()
-    D.to_hdf(outpath+'_cooked.h5', 'a')
-
-    print('Runtime: ', deltaT/60, 'minutes')
-    return 0
 
 
 
