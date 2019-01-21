@@ -7,24 +7,59 @@ import sys
 
 
 
-def dask_chewer(filename, outpath='data/daskframe.h5'):
+def dask_chewer(filename, outpath, threshold, blocksize=25*10**6, baseline=920):
+    """Uses multprocessing to process data and return a simple dataframe in parquet format"""
     t0 = time.time()
+
+    #Load the csv file
     A = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['idx','timestamp', 'samples'],
-                    dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=25*10**6)
-    A=A[['idx','timestamp','samples']]
+                    dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=blocksize)
+    #format samples
     A['samples'] = A['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=A['samples'])
     A['samples'] = A['samples'].apply(lambda x: x - int(round(np.average(x[0:20]))), meta=A['samples'])
-    A['amplitude'] = A['samples'].apply(lambda x: np.max(np.absolute(x)), meta=A['samples'])
-    A['peak_index'] = A['samples'].apply(lambda x: np.argmax(np.absolute(x)), meta=A['samples'])
-    #A['lg'] = A['samples'].apply(lambda x: np.trapz(x[A['peak_index']-10: A['peak_index']+490]), meta=A)
-#    A['rise'] = A['samples'].apply(, meta=A['samples'])
+    A['amplitude'] = A['samples'].apply(lambda x: np.max(np.absolute(x)), meta=A['samples']).astype(np.int16)
+    #Throw away events whose amplitude is below the threshold and those whose amplitude
+    #is greater or equal to the expected maximum amplitude (likely have their tops cut off)
+    A = A[A['amplitude'] > threshold]
+    A = A[baseline > A['amplitude']]
+    A['peak_index'] = A['samples'].apply(lambda x: np.argmax(np.absolute(x)), meta=A['samples']).astype(np.int16)
     A.to_parquet(outpath, engine='pyarrow')
-    t1=time.time()
-    print('processing time',t1-t0)
+    print('processing time',time.time() - t0)
     return A
-#A=dask_chewer('data/2019-01-19/N3.txt', outpath='data/2019-01-19/daskframe.parquet')
-#A=dask_chewer('data/2018-12-26/set1/N3.txt', outpath='data/2019-01-19/daskframe.parquet')
 
+def process_daskframe(filename, frac=0.3, lg=500, sg=55, offset=10, mode=2):
+    """Reads the parquet file(s) produced by dask_chewer and adds longgate and shortgate integrals as well as cfd rise and fall triggers"""
+    t0 = time.time()
+    #read the file(s)
+    df = pd.read_parquet(filename, engine='pyarrow')
+    #Get df length
+    L = len(df)
+
+    #define the arrays used for the new columns
+    rise = np.array([0]*L, dtype=np.int32)
+    fall = np.array([0]*L, dtype=np.int32)
+    longgate = np.array([0]*L, dtype=np.int32)
+    shortgate = np.array([0]*L, dtype=np.int32)
+    ps = np.array([0]*L, dtype=np.int32)
+
+    #loop through df and populate arrays
+    for i in range(0, L):
+        if i%1000 == 0:
+            k = int(100*i/L + 0.5)
+            sys.stdout.write("\rGenerating qdc integrals and cfd triggers %d%%" % k)
+            sys.stdout.flush()
+        rise[i], fall[i] = cfd(df.samples[i], frac, df.peak_index[i])
+        longgate[i], shortgate[i], ps[i] = pulse_integrate(df, i=i, lg=lg, sg=sg, offset=offset, mode=mode)
+    sys.stdout.write("\rGenerating qdc integrals and cfd triggers 100%%")
+    sys.stdout.flush()
+
+    #add the new columns and throw away poorly contained events
+    df['rise'], df['fall'] = rise, fall
+    df['longgate'], df['shortgate'], df['ps'] = longgate, shortgate, ps
+    #Let the user know the runtime
+    print('\nprocessing time: ',time.time() - t0)
+
+    return df
 
 
 def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**16, outpath='data/chunk'):
@@ -102,39 +137,33 @@ def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**1
 
 
 
-def get_gates(frame, lg=500, sg=55, offset=10, mode=0):
-    longgate=np.array([0]*len(frame), dtype=np.int16)
-    shortgate=np.array([0]*len(frame), dtype=np.int16)
-    for i in range(0, len(frame)):
-        k = round(100*i/len(frame))
-        sys.stdout.write("\rCalculating gates %d%%" % k)
-        sys.stdout.flush()
+def pulse_integrate(frame, i, lg=500, sg=55, offset=10, mode=0):
+    """Integrates pulses over two timescales: lg and sg given in nanoseconds, starting offset ns from the pulse peak.
+    Integration is done in one of three ways.\n mode=0: integrate across positive and negative bins alike.
+    \n mode=1 integrate positive bins only. \n mode=2 integrate the absolute value of the pulse."""
+    longgate = 0
+    shortgate = 0
+    #start = int(round(frame.refpoint_rise[i]/1000))-offset
+    start = frame.peak_index[i]-offset
+    if mode == 0:
+        longgate = abs(np.trapz(frame.samples[i][start:start+lg]))
+        shortgate = abs(np.trapz(frame.samples[i][start:start+sg]))
+    elif mode == 1:
+        longgate = abs( np.trapz( frame.samples[i][start : start + lg].clip(max = 0) ) )
+        shortgate = abs( np.trapz( frame.samples[i][start : start + sg].clip(max = 0) ) )
+    elif mode == 2:
+        longgate = abs( np.trapz( np.absolute( frame.samples[i][start : start + lg] ) ) )
+        shortgate = abs( np.trapz( np.absolute( frame.samples[i][start : start + sg] ) ) )
 
-        #start = int(round(frame.refpoint_rise[i]/1000))-offset
-        start = frame.peak_index[i]-offset
-        if mode == 0:
-            longgate[i] = abs(np.trapz(frame.samples[i][start:start+lg]))
-            shortgate[i] = abs(np.trapz(frame.samples[i][start:start+sg]))
-        elif mode == 1:
-            longgate[i] = abs( np.trapz( frame.samples[i][start : start + lg].clip(max = 0) ) )
-            shortgate[i] = abs( np.trapz( frame.samples[i][start : start + sg].clip(max = 0) ) )
-        elif mode == 2:
-            longgate[i] = abs( np.trapz( np.absolute( frame.samples[i][start : start + lg] ) ) )
-            shortgate[i] = abs( np.trapz( np.absolute( frame.samples[i][start : start + sg] ) ) )
+    #send weird events to quarantine bins
+    if shortgate > longgate:
+        longgate = 40000
+        shortgate = 40000
+    if longgate <= 0 or shortgate <= 0:
+        longgate = 40000
+        shortgate = 40000
 
-        #send weird events to quarantine bins
-        if shortgate[i] > longgate[i]:
-            #workaround. need to deal with reflections properly!
-            longgate[i] = 40000
-            shortgate[i] = 40000
-        if longgate[i] <= 0 or shortgate[i]<=0:
-            longgate[i] = 40000
-            shortgate[i] = 40000
-
-    frame['ps'] = (longgate-shortgate)/longgate
-    frame['longgate']=longgate
-    frame['shortgate']=shortgate
-    return 0
+    return longgate, shortgate, (longgate-shortgate)/longgate
 
 
 
