@@ -8,11 +8,11 @@ import sys
 import os
 
 
-def dask_chewer(filename, outpath, threshold, maxamp, lg=500, sg=60, blocksize=25*10**6):
+def dask_chewer(filename, outpath, threshold, maxamp, lg=500, sg=60, blocksize=25*10**6, mode=0):
     """Uses multprocessing to process data and return a simple dataframe in parquet format"""
     filesize = os.path.getsize(filename)
-    nBlocks = int(round( (0.5 + filesize) / blocksize ) )
-    print('Filesize = ', filesize, '. ', nBlocks, 'Blocks will be generated' )
+    nBlocks = int(round(0.5 + (filesize / blocksize) ) )
+    print('Filesize = ', filesize, 'Bytes ...', nBlocks, 'Blocks will be generated' )
     #Load the csv file
     df = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['event_number','timestamp', 'samples'],
                     dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=blocksize)
@@ -28,8 +28,19 @@ def dask_chewer(filename, outpath, threshold, maxamp, lg=500, sg=60, blocksize=2
     df['peak_index'] = df['samples'].apply(lambda x: np.argmin(x), meta=df['samples']).astype(np.int16)
 
     #charge integrals
-    df['qdc_lg'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+lg])), meta=df['samples']).astype(np.int32)
-    df['qdc_sg'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+sg])), meta=df['samples']).astype(np.int32)
+    if mode == 0:
+        #integrate over the absolute value of the pulses
+        df['qdc_lg'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+lg])), meta=df['samples']).astype(np.int16)
+        df['qdc_sg'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+sg])), meta=df['samples']).astype(np.int16)
+    elif mode == 1:
+        # integrate the pulses as they are (negative bins will drag the integral down)
+        df['qdc_lg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg])), meta=df['samples']).astype(np.int16)
+        df['qdc_sg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg])), meta=df['samples']).astype(np.int16)
+    elif mode == 2:
+        #integrate the pulses, but ignore negative bins
+        #Not working properly yet
+        df['qdc_lg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg].clip(max = 0)), meta=df['samples'])).astype(np.int16)
+        df['qdc_sg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg].clip(max = 0)), meta=df['samples'])).astype(np.int16)
 
     #cfd triggers
     #...
