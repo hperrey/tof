@@ -7,25 +7,34 @@ import sys
 
 
 
-def dask_chewer(filename, outpath, threshold, blocksize=25*10**6, baseline=920):
+def dask_chewer(filename, outpath, threshold, maxamp, lg=500, sg=60, blocksize=25*10**6):
     """Uses multprocessing to process data and return a simple dataframe in parquet format"""
     t0 = time.time()
-
     #Load the csv file
-    A = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['idx','timestamp', 'samples'],
+    df = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['event_number','timestamp', 'samples'],
                     dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=blocksize)
     #format samples
-    A['samples'] = A['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=A['samples'])
-    A['samples'] = A['samples'].apply(lambda x: x - int(round(np.average(x[0:20]))), meta=A['samples'])
-    A['amplitude'] = A['samples'].apply(lambda x: np.max(np.absolute(x)), meta=A['samples']).astype(np.int16)
+    df['samples'] = df['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=df['samples'])
+    df['samples'] = df['samples'].apply(lambda x: x - int(round(np.average(x[0:20]))), meta=df['samples'])
+
     #Throw away events whose amplitude is below the threshold and those whose amplitude
     #is greater or equal to the expected maximum amplitude (likely have their tops cut off)
-    A = A[A['amplitude'] > threshold]
-    A = A[baseline > A['amplitude']]
-    A['peak_index'] = A['samples'].apply(lambda x: np.argmax(np.absolute(x)), meta=A['samples']).astype(np.int16)
-    A.to_parquet(outpath, engine='pyarrow')
+    df['amplitude'] = df['samples'].apply(lambda x: np.max(np.absolute(x)), meta=df['samples']).astype(np.int16)
+    df = df[df['amplitude'] > threshold]
+    df = df[maxamp > df['amplitude']]
+    df['peak_index'] = df['samples'].apply(lambda x: np.argmin(x), meta=df['samples']).astype(np.int16)
+
+    #charge integrals
+    df['lg_integral'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+lg])), meta=df['samples']).astype(np.int32)
+    df['sg_integral'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+sg])), meta=df['samples']).astype(np.int32)
+
+    #cfd triggers
+    #...
+
+    #save to disk
+    df.to_parquet(outpath, engine='pyarrow')
     print('processing time',time.time() - t0)
-    return A
+    return df
 
 def process_daskframe(filename, frac=0.3, lg=500, sg=55, offset=10, mode=2):
     """Reads the parquet file(s) produced by dask_chewer and adds longgate and shortgate integrals as well as cfd rise and fall triggers"""
@@ -35,12 +44,15 @@ def process_daskframe(filename, frac=0.3, lg=500, sg=55, offset=10, mode=2):
     #Get df length
     L = len(df)
 
-    #define the arrays used for the new columns
+    #define the arrays used for the new columns, as well as some dummy variables
     rise = np.array([0]*L, dtype=np.int32)
     fall = np.array([0]*L, dtype=np.int32)
     longgate = np.array([0]*L, dtype=np.int32)
     shortgate = np.array([0]*L, dtype=np.int32)
     ps = np.array([0]*L, dtype=np.float32)
+    #timestamp = np.array([0]*L, dtype=np.int64)
+    #timestampDummy= 0
+    #nTimesReset = 0
 
     #loop through df and populate arrays
     for i in range(0, L):
@@ -50,12 +62,18 @@ def process_daskframe(filename, frac=0.3, lg=500, sg=55, offset=10, mode=2):
             sys.stdout.flush()
         rise[i], fall[i] = cfd(df.samples[i], frac, df.peak_index[i])
         longgate[i], shortgate[i], ps[i] = pulse_integrate(df, i=i, lg=lg, sg=sg, offset=offset, mode=mode)
+        #Correct the timestamp resetting done by Wavedump at t=2**32
+        #if (df['timestamp'][i] < timestampDummy):
+        #    nTimesReset += 1
+        #timestamp[i] = df['timestamp'][i] + nTimesReset*2147483647
+        #timestampDummy = df['timestamp'][i]
     sys.stdout.write("\rGenerating qdc integrals and cfd triggers 100%%")
     sys.stdout.flush()
 
     #add the new columns and throw away poorly contained events
     df['rise'], df['fall'] = rise, fall
     df['longgate'], df['shortgate'], df['ps'] = longgate, shortgate, ps
+    df['timestamp'] = timestamp
     #Let the user know the runtime
     print('\nprocessing time: ',time.time() - t0)
 
