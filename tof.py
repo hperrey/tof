@@ -8,14 +8,23 @@ import sys
 import os
 
 
-def dask_chewer(filename, outpath, threshold, maxamp, lg=500, sg=60, blocksize=25*10**6, mode=0):
+def dask_chewer(filenames, outpath, threshold, maxamp, frac=0.3, lg=500, sg=60, blocksize=25*10**6, mode=0):
     """Uses multprocessing to process data and return a simple dataframe in parquet format"""
-    filesize = os.path.getsize(filename)
+    filesize = os.path.getsize(filenames[0])
     nBlocks = int(round(0.5 + (filesize / blocksize) ) )
-    print('Filesize = ', filesize, 'Bytes ...', nBlocks, 'Blocks will be generated' )
-    #Load the csv file
-    df = dd.read_csv(filename, header=None, usecols=[3, 5, 7], names=['event_number','timestamp', 'samples'],
-                    dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=blocksize)
+    for i in range(0, len(filenames)):
+        filesize = os.path.getsize(filenames[i])
+        nBlocks = int(round(0.5 + (filesize / blocksize) ) )
+        print('Filesize of file number %d = '%(i+1), filesize, 'Bytes ...', nBlocks, 'Blocks will be generated' )
+
+    df_list = [None]*len(filenames)
+    #Load the csv files
+    for i in range(0, len(filenames)):
+        df_list[i] = dd.read_csv(filenames[i], header=None, usecols=[0, 2, 3, 5, 7],
+                         names=['window_width', 'channel', 'event_number', 'timestamp', 'samples'],
+                         dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=blocksize)
+    df = dd.concat(df_list)
+
     #format samples
     df['samples'] = df['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=df['samples'])
     df['samples'] = df['samples'].apply(lambda x: x - int(round(np.average(x[0:20]))), meta=df['samples'])
@@ -25,9 +34,9 @@ def dask_chewer(filename, outpath, threshold, maxamp, lg=500, sg=60, blocksize=2
     df['amplitude'] = df['samples'].apply(lambda x: np.max(np.absolute(x)), meta=df['samples']).astype(np.int16)
     df = df[df['amplitude'] > threshold]
     df = df[maxamp > df['amplitude']]
-    df['peak_index'] = df['samples'].apply(lambda x: np.argmin(x), meta=df['samples']).astype(np.int16)
+    df['peak_index'] = df['samples'].apply(np.argmin, meta=df['samples']).astype(np.int16)
 
-    #charge integrals
+    #charge integrals. Choose which way to integrate via the mode parameter.
     if mode == 0:
         #integrate over the absolute value of the pulses
         df['qdc_lg'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+lg])), meta=df['samples']).astype(np.int16)
@@ -39,11 +48,12 @@ def dask_chewer(filename, outpath, threshold, maxamp, lg=500, sg=60, blocksize=2
     elif mode == 2:
         #integrate the pulses, but ignore negative bins
         #Not working properly yet
-        df['qdc_lg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg].clip(max = 0)), meta=df['samples'])).astype(np.int16)
-        df['qdc_sg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg].clip(max = 0)), meta=df['samples'])).astype(np.int16)
+        df['qdc_lg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg].clip(max = 0))), meta=df['samples']).astype(np.int16)
+        df['qdc_sg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg].clip(max = 0))), meta=df['samples']).astype(np.int16)
 
     #cfd triggers
-    #...
+    df['cfd_trig_rise'] = np.int16(0)
+    df['cfd_trig_rise'] = df.apply(lambda x: cfd_dask(x, frac=0.3), meta=df['samples'], axis=1)
 
     #save to disk
     with ProgressBar():
@@ -229,6 +239,31 @@ def get_species(df, X=[0, 1190,2737, 20000], Y=[0, 0.105, 0.148, 0.235]):
                             species[n] = 1
                         break
     df['species'] = species
+
+def cfd_dask(row, frac):
+    peak = row['samples'][row['peak_index']]
+    samples=row['samples']
+    rise_index = 0
+    #find the cfd rise point
+    for i in range(0, row['peak_index']):
+        if samples[i] < frac * peak:
+            rise_index = i
+            break
+        else:
+            rise_index = 0
+    #rise_index is the first bin after we crossed the threshold.
+    #We want deltaSamples/deltaTime across riseindex and riseindex-1
+    slope_rise = (samples[rise_index] - samples[rise_index-1])#divided by deltaT 1ns
+
+    #slope equal 0 is a sign of error. fx a pulse located in first few bins and already above threshold in bin 0.
+    if slope_rise == 0:
+        print('\neventnumber=', row['event_number'],'\nslope == 0!!!!\nindex=', rise_index,'\n', samples[rise_index-5:rise_index+5])
+        tfine_rise = -1
+    else:
+        tfine_rise = 1000*(rise_index-1) + int(round(1000*(peak*frac-samples[rise_index-1])/slope_rise))
+    return tfine_rise
+
+
 
 def cfd(samples, frac, peak_index):
     peak = samples[peak_index]
