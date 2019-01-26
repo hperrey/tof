@@ -3,13 +3,12 @@ import numpy as np
 import pandas as pd
 import dask.dataframe as dd
 from dask.diagnostics import ProgressBar
-import csv
 import sys
 import os
 
-
-def dask_chewer(filenames, outpath, threshold, maxamp, frac=0.3, lg=500, sg=60, blocksize=25*10**6, mode=0):
-    """Uses multprocessing to process data and return a simple dataframe in parquet format"""
+def dask_chewer(filenames, outpath, threshold, maxamp, baseline_offset, frac=0.3, lg=500, sg=60, blocksize=25*10**6, mode=0):
+    """Uses dask to process data on all available logical coresand return a simple dataframe in parquet format
+    \nfilenames, \noutpath, \nthreshold, \nmaxamp, \nbaseline_offset, \nfrac=0.3, \nlg=500, \nsg=60, \nblocksize=25*10**6, \nmode=0"""
     filesize = os.path.getsize(filenames[0])
     nBlocks = int(round(0.5 + (filesize / blocksize) ) )
     for i in range(0, len(filenames)):
@@ -25,7 +24,7 @@ def dask_chewer(filenames, outpath, threshold, maxamp, frac=0.3, lg=500, sg=60, 
                          dtype={'idx': np.int64, 'timestamp': np.int64, 'samples': np.object}, blocksize=blocksize)
     df = dd.concat(df_list)
 
-    #format samples
+    #format samples: first convert the string into an integer array. Then subtract the baseline.
     df['samples'] = df['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=df['samples'])
     df['samples'] = df['samples'].apply(lambda x: x - int(round(np.average(x[0:20]))), meta=df['samples'])
 
@@ -43,8 +42,8 @@ def dask_chewer(filenames, outpath, threshold, maxamp, frac=0.3, lg=500, sg=60, 
         df['qdc_sg'] = df['samples'].apply(lambda x: np.trapz(np.abs(x[np.argmin(x)-10:np.argmin(x)+sg])), meta=df['samples']).astype(np.int16)
     elif mode == 1:
         # integrate the pulses as they are (negative bins will drag the integral down)
-        df['qdc_lg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg])), meta=df['samples']).astype(np.int16)
-        df['qdc_sg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg])), meta=df['samples']).astype(np.int16)
+        df['qdc_lg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg] + baseline_offset)), meta=df['samples']).astype(np.int16)
+        df['qdc_sg'] = df['samples'].apply(lambda x: abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg] + baseline_offset)), meta=df['samples']).astype(np.int16)
     elif mode == 2:
         #integrate the pulses, but ignore negative bins
         #Not working properly yet
@@ -59,49 +58,6 @@ def dask_chewer(filenames, outpath, threshold, maxamp, frac=0.3, lg=500, sg=60, 
     with ProgressBar():
         print('Dataframe generated: Saving dataframe to disk')
         df.to_parquet(outpath, engine='pyarrow')
-    return df
-
-def process_daskframe(filename, frac=0.3, lg=500, sg=55, offset=10, mode=2):
-    """Reads the parquet file(s) produced by dask_chewer and adds longgate and shortgate integrals as well as cfd rise and fall triggers"""
-    t0 = time.time()
-    #read the file(s)
-    df = pd.read_parquet(filename, engine='pyarrow')
-    #Get df length
-    L = len(df)
-
-    #define the arrays used for the new columns, as well as some dummy variables
-    rise = np.array([0]*L, dtype=np.int32)
-    fall = np.array([0]*L, dtype=np.int32)
-    longgate = np.array([0]*L, dtype=np.int32)
-    shortgate = np.array([0]*L, dtype=np.int32)
-    ps = np.array([0]*L, dtype=np.float32)
-    #timestamp = np.array([0]*L, dtype=np.int64)
-    #timestampDummy= 0
-    #nTimesReset = 0
-
-    #loop through df and populate arrays
-    for i in range(0, L):
-        if i%1000 == 0:
-            k = int(100*i/L + 0.5)
-            sys.stdout.write("\rGenerating qdc integrals and cfd triggers %d%%" % k)
-            sys.stdout.flush()
-        rise[i], fall[i] = cfd(df.samples[i], frac, df.peak_index[i])
-        longgate[i], shortgate[i], ps[i] = pulse_integrate(df, i=i, lg=lg, sg=sg, offset=offset, mode=mode)
-        #Correct the timestamp resetting done by Wavedump at t=2**32
-        #if (df['timestamp'][i] < timestampDummy):
-        #    nTimesReset += 1
-        #timestamp[i] = df['timestamp'][i] + nTimesReset*2147483647
-        #timestampDummy = df['timestamp'][i]
-    sys.stdout.write("\rGenerating qdc integrals and cfd triggers 100%%")
-    sys.stdout.flush()
-
-    #add the new columns and throw away poorly contained events
-    df['rise'], df['fall'] = rise, fall
-    df['longgate'], df['shortgate'], df['ps'] = longgate, shortgate, ps
-    df['timestamp'] = timestamp
-    #Let the user know the runtime
-    print('\nprocessing time: ',time.time() - t0)
-
     return df
 
 
