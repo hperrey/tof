@@ -107,7 +107,7 @@ def get_tof(df, Nchannel, Ychannel, shift):
     return df
 
 
-def get_tof_array(df, Nchannel, Ychannel, i):
+def get_tof_array(df, Nchannel, Ychannel, i, tol):
     """generates an array of the times of flight.
     \ndf = the dataframe to get tof format
     \n Nchannel = The channel of the neutron detector
@@ -123,7 +123,7 @@ def get_tof_array(df, Nchannel, Ychannel, i):
         if (row['channel'] == Nchannel):
             Nch_index = i
             Ntdummy = row['timestamp']*1000*8 + row['cfd_trig_rise']
-        if (0 < Ntdummy-Ytdummy < 300000 ):
+        if (0 < Ntdummy-Ytdummy < tol ):
             tofarray[Nch_index] = Ntdummy-Ytdummy
         i += 1
     return tofarray, i
