@@ -12,21 +12,23 @@ from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Embedding
 from keras.layers import Conv1D, GlobalAveragePooling1D, MaxPooling1D
 
+from keras.callbacks import ModelCheckpoint
 
 
 #training set
-Training_set = dd.read_parquet('data/NandYseperated/T.pq', engine='pyarrow').reset_index()
-neutrons = Training_set.query('62000<tof<92000 and 200000<cfd_trig_rise<1000000')
+Training_set = dd.read_parquet('data/2019-02-13/T.pq', engine='pyarrow').query('amplitude>20').reset_index()
+neutrons = Training_set.query('55000<tof<78000 and 200000<cfd_trig_rise<1000000')
 neutrons = neutrons.compute()
 neutrons = neutrons.drop('index', axis=1)
 neutrons = neutrons.reset_index()
-gammas = Training_set.query('30000<tof<39000 and 200000<cfd_trig_rise<1000000')
+gammas = Training_set.query('20000<tof<35000 and 200000<cfd_trig_rise<1000000')
 gammas = gammas.compute()
 gammas = gammas.drop('index', axis=1)
 gammas = gammas.reset_index()
 
 #testset
-df_test = dd.read_parquet('data/NandYseperated/val.pq', engine='pyarrow').reset_index()
+df_test = dd.read_parquet('data/2019-02-13/V.pq', engine='pyarrow').query('amplitude>20').reset_index()
+#df_test = dd.read_parquet('data/2019-02-13/test/test2min.parquet', engine='pyarrow').reset_index()
 df_test = df_test.query(' 200000<cfd_trig_rise<1000000')
 df_test = df_test.compute()
 df_test = df_test.drop('index', axis=1)
@@ -48,7 +50,7 @@ St = get_samples(df_test)
 L=min([len(neutrons), len(gammas)])
 print(L, ' samples of each species will be used')
 window_width = len(Sn[0])#n_train.window_width[0]
-r = 0.85
+r = 0.8
 X1=np.stack(Sn[0:int(r*L)])#n_train.samples)
 X2=np.stack(Sy[0:L])#y_train.samples)
 x_train = np.concatenate([X1, X2]).reshape(L+int(r*L),window_width,1)
@@ -59,18 +61,19 @@ x_test=x_test.reshape(len(x_test), window_width, 1)
 
 #model definition
 model = Sequential()
-model.add(Conv1D(16, 7, strides=3, activation='relu', input_shape=(window_width, 1)))
-model.add(Dropout(0.1))
-model.add(MaxPooling1D(3, strides=3))
-model.add(Conv1D(16, 7, strides=1, activation='relu'))
-model.add(Dropout(0.1))
-model.add(MaxPooling1D(3, stride=3))
+model.add(Conv1D(16, 11, strides=4, activation='relu', input_shape=(window_width, 1)))
+model.add(Dropout(0.08))
+model.add(MaxPooling1D(2, strides=2))
+
+model.add(Conv1D(16, 3, strides=1, activation='relu'))
+model.add(Dropout(0.08))
+model.add(MaxPooling1D(2, stride=2))
+
 model.add(Flatten())
-#model.add(Dropout(0.25))
 model.add(Dense(1, activation='sigmoid'))
 
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-model.fit(x_train, y_train, batch_size=24, epochs=3)
+model.fit(x_train, y_train, batch_size=56, epochs=5)#, validation_split=0.1)
 predictions = model.predict(x_test)
 df_test['pred']=predictions
 df_test0 = df_test.query('pred<0.5')
@@ -81,7 +84,7 @@ plt.hist(df_test.tof/1000, bins=250, range=(0,500), alpha=0.25, label='Sum')
 plt.hist(df_test0.tof/1000, bins=250, range=(0,500), histtype='step', lw=1.5, label='Gamma')
 plt.hist(df_test1.tof/1000, bins=250, range=(0,500), histtype='step', lw=1.5, label='Neutron')
 plt.legend()
-plt.title('ToF spectrum \nfiltered by convolutional neural network\nTrained on 30 minute dataset, here tested on 10 minute dataset')
+plt.title('ToF spectrum \nfiltered by convolutional neural network\nTrained on 45 minute dataset, here tested on 15 minute dataset')
 plt.ylabel('Counts')
 plt.xlabel('t(ns)')
 plt.show()
@@ -106,15 +109,18 @@ plt.show()
 T=Training_set.query('0<tof<100000 and 0<cfd_trig_rise<650000')
 
 #hexbin
-plt.hexbin(df_test.qdc_lg/100, df_test.pred, gridsize=30, label=('10 minute dataset'),cmap='inferno')
-plt.xlim(0,12500)
-#plt.legend()
+plt.hexbin(df_test.qdc_lg, df_test.pred, gridsize=30, cmap='inferno', vmin=0, vmax=200)
+plt.xlim(0,2000000)
 plt.title('CNN predictions versus longgate QDC values')
-plt.xlabel('qdc channel')
+plt.xlabel('qdc bin')
 plt.ylabel('CNN prediction')
+plt.colorbar()
 plt.show()
+
 # T=Training_set.query('0<tof<100000 and 0<cfd_trig_rise<650000')
 # plt.hexbin(T.cfd_trig_rise.compute(), T.tof.compute(), gridsize=100)
 # plt.xlabel('cfd_trigger time within window (ps)')
 # plt.ylabel('tof (ps)')
 # plt.show()
+
+

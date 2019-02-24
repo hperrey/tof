@@ -1,4 +1,9 @@
-def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**16, outpath='data/chunk'):
+import numpy as np
+import time
+import pandas as pd
+import sys
+
+def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**15, outpath='data/chunk'):
     """load_data()\nArguments and default inputs: \nfilename: path to datafile, \nthreshold: absolute value, unit ADC count, range 0 to 1023, \nskip_badevents=True: Wether to skip events where baseline was noisy or threshold was not surpassed, \nchunksize=2**16: the size of the chunks. for 8gB RAM 2**16-2**17 seems to be the limit, \noutpath='data/chunk': path to outputfile location.:"""
     t0 = time.time()
     print("Scanning the file to get number of chunks:")
@@ -38,7 +43,7 @@ def load_data(filename, threshold, frac=0.3, skip_badevents=True, chunksize=2**1
             peak_index[i] = np.argmin(df.samples[i])
 
             #Accept only only events above threshold and for which the first 20 samples can give a good baseline.
-            if (skip_badevents==True) and (abs(df.samples[i][peak_index[i]] - Baseline) < threshold or (max(df.samples[i][0:20])-min(df.samples[i][0:20])) > 3):
+            if (skip_badevents==True) and (abs(df.samples[i][peak_index[i]] - Baseline) < threshold or np.std(df.samples[i][0:20])>2):
                 valid_event[i] = False
                 continue
             else:
