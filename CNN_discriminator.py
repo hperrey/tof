@@ -1,10 +1,12 @@
 # coding: utf-8
 import matplotlib.pyplot as plt
+import matplotlib.colors as mc
 import seaborn as sns
 sns.set()
 import pandas as pd
 import numpy as np
 import dask.dataframe as dd
+
 np.random.seed(666)
 #Keras stuff
 from keras.models import Sequential
@@ -14,14 +16,15 @@ from keras.layers import Conv1D, GlobalAveragePooling1D, MaxPooling1D
 
 from keras.callbacks import ModelCheckpoint
 
+waveFormLegth=300
 
 #training set
 Training_set = dd.read_parquet('data/2019-02-13/T.pq', engine='pyarrow').query('amplitude>20').reset_index()
-neutrons = Training_set.query('55000<tof<78000 and 200000<cfd_trig_rise<1000000')
+neutrons = Training_set.query('55000<tof<78000 and 1000*%d<cfd_trig_rise<1000*(1204-%d)'%(waveFormLegth, waveFormLegth))
 neutrons = neutrons.compute()
 neutrons = neutrons.drop('index', axis=1)
 neutrons = neutrons.reset_index()
-gammas = Training_set.query('20000<tof<35000 and 200000<cfd_trig_rise<1000000')
+gammas = Training_set.query('20000<tof<35000 and 1000*%d<cfd_trig_rise<1000*(1204-%d)'%(waveFormLegth, waveFormLegth))
 gammas = gammas.compute()
 gammas = gammas.drop('index', axis=1)
 gammas = gammas.reset_index()
@@ -29,7 +32,7 @@ gammas = gammas.reset_index()
 #testset
 df_test = dd.read_parquet('data/2019-02-13/V.pq', engine='pyarrow').query('amplitude>20').reset_index()
 #df_test = dd.read_parquet('data/2019-02-13/test/test2min.parquet', engine='pyarrow').reset_index()
-df_test = df_test.query(' 200000<cfd_trig_rise<1000000')
+df_test = df_test.query(' 1000*%d<cfd_trig_rise<1000*(1204-%d)'%(waveFormLegth, waveFormLegth))
 df_test = df_test.compute()
 df_test = df_test.drop('index', axis=1)
 df_test = df_test.reset_index()
@@ -39,7 +42,7 @@ def get_samples(df):
     S = np.array([None]*df.shape[0])
     #S = [0]*len(df)
     for i in range(0, len(df)):
-        S[i] = df.samples[i][int(0.5 + df.cfd_trig_rise[i]/1000)-20: int(0.5 + df.cfd_trig_rise[i]/1000)+180]
+        S[i] = df.samples[i][int(0.5 + df.cfd_trig_rise[i]/1000)-20: int(0.5 + df.cfd_trig_rise[i]/1000)+waveFormLegth-20]
     return S
 
 Sn = get_samples(neutrons)
@@ -61,16 +64,16 @@ x_test=x_test.reshape(len(x_test), window_width, 1)
 
 #model definition
 model = Sequential()
-model.add(Conv1D(16, 11, strides=4, activation='relu', input_shape=(window_width, 1)))
+model.add(Conv1D(filters=16, kernel_size=5, strides=1, activation='relu', input_shape=(window_width, 1)))
 model.add(Dropout(0.08))
 model.add(MaxPooling1D(2, strides=2))
 
-model.add(Conv1D(16, 3, strides=1, activation='relu'))
+model.add(Conv1D(filters=16, kernel_size=5, strides=1, activation='relu'))
 model.add(Dropout(0.08))
 model.add(MaxPooling1D(2, stride=2))
 
 model.add(Flatten())
-model.add(Dense(1, activation='sigmoid'))
+model.add(Dense(1, activation='sigmoid', name='preds'))
 
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 model.fit(x_train, y_train, batch_size=56, epochs=5)#, validation_split=0.1)
@@ -108,14 +111,23 @@ plt.ylabel('CNN prediction')
 plt.show()
 T=Training_set.query('0<tof<100000 and 0<cfd_trig_rise<650000')
 
-#hexbin
-plt.hexbin(df_test.qdc_lg, df_test.pred, gridsize=30, cmap='inferno', vmin=0, vmax=200)
-plt.xlim(0,2000000)
-plt.title('CNN predictions versus longgate QDC values')
-plt.xlabel('qdc bin')
-plt.ylabel('CNN prediction')
-plt.colorbar()
+dummy=df_test.query('-0.4<=ps<0.6')
+H = sns.JointGrid(dummy.ps, dummy.pred)
+H = H.plot_joint(plt.hexbin, cmap='inferno', gridsize=(120,120))
+H.ax_joint.set_xlabel('Tail/total')
+H.ax_joint.set_ylabel('CNN prediction')
+_ = H.ax_marg_x.hist(dummy.ps, color="purple", alpha=.5, bins=np.arange(-0.4, 0.6, 0.01))
+_ = H.ax_marg_y.hist(dummy.pred, color="purple", alpha=.5, orientation="horizontal", bins=np.arange(0, 1, 0.01))
+plt.setp(H.ax_marg_x.get_yticklabels(), visible=True)
+plt.setp(H.ax_marg_y.get_xticklabels(), visible=True)
+plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)  # shrink fig so cbar is visible
+cbar_ax = H.fig.add_axes([0.92, 0.08, .02, 0.7])  # x, y, width, height
+plt.colorbar(cax=cbar_ax)
 plt.show()
+
+
+
+
 
 # T=Training_set.query('0<tof<100000 and 0<cfd_trig_rise<650000')
 # plt.hexbin(T.cfd_trig_rise.compute(), T.tof.compute(), gridsize=100)

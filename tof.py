@@ -1,13 +1,14 @@
-import time
 import numpy as np
-import pandas as pd
+import os
+#Dask stuff
 import dask.dataframe as dd
 from dask.diagnostics import ProgressBar
-import sys
-import os
+#Neural network stuff
+import keras
 
-def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="", baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=500, sg=60, blocksize=25*10**6,  repatition_factor=16):
-    """Uses dask to process data on all available logical coresand return a simple dataframe in parquet format
+
+def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_path="", CNN_window=300,  baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=500, sg=60, blocksize=25*10**6,  repatition_factor=16):
+    """Uses dask to process data on all available logical cores and return a simple dataframe in parquet format
     \nfilepath = Path to file. Use * as a wildcard to read multiple textfile: e.g. file*.txt, will read file1.txt, file2.txt, file3.txt, etc into the same dataframe.
     \nthreshold = Wavedump triggers on all channels when one channel triggers, so to throw away empty events we must reenforce the threshold.
     \nmaxamp = Max amplitude varies with the offset used in the wavedump config file. If a pulse reaches the maxAmp then we want to throw it away as it is likely to have some part cut off.
@@ -22,13 +23,14 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="", basel
     filesize = os.stat(filepath).st_size
     Nblocks = int(round(0.5+(filesize / blocksize / repatition_factor)))
     print('processing ', filesize, ' bytes. Will generate', Nblocks, ' blocks' )
+    print('Generating lazy instructions.')
 
     #==================#
     # Read in the file #
     #==================#
     df = dd.read_csv(filepath, header=None, usecols=[0, 2, 3, 5, 7],
                      names=['window_width', 'channel', 'event_number', 'timestamp', 'samples'],
-                     dtype={'window_width': np.int16,
+                     dtype={'window_width': np.int32,
                             'channel': np.int8,
                             'event_number': np.int64,
                             'timestamp': np.int64,
@@ -54,13 +56,6 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="", basel
     # offsetting each bin by a certain baseline offset is equivalent to adding the product
     # of the integration window and the baseline offset to the integration.
     df = pulse_integration(df, lg, sg, lg_baseline_offset, sg_baseline_offset)
-    # df['qdc_lg'] = df['samples'].apply(lambda x:
-    #                                    lg*baseline_offset + 100*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg])),
-    #                                    meta=df['samples']).astype(np.int32)
-    # df['qdc_sg'] = df['samples'].apply(lambda x:
-    #                                    sg*baseline_offset + 100*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg])),
-    #                                    meta=df['samples']).astype(np.int32)
-    # df['ps'] = (df['qdc_lg']-df['qdc_sg'])/df['qdc_lg']
 
     #=======================#
     # generate cfd triggers #
@@ -79,10 +74,11 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="", basel
     df['baseline_std'] = np.float64(0)
     df['baseline_std'] = df['samples'].apply(lambda x: np.std(x[0:baseline_int_window]), meta=df['baseline_std'])
     df = df[df['baseline_std'] < 2]
-    #and those where the cfd triggering failed.cfd_trig_rise = -1 implies error. This occurs if the
-    #first bin is above the cfd trigger point. We also want to ensure that the cfd trigger happens
-    #after the baseline determination and with enough bins following to allow proper lg integration.
-    df = df.loc[(baseline_int_window < df['cfd_trig_rise']) & df['cfd_trig_rise'] <  df['window_width']-lg]
+    #and those where the cfd triggering failed.cfd_trig_rise = -1 implies error. This occurs if the first bin is
+    #above the cfd trigger point. We also want to ensure that the cfd trigger happens after the baseline determination
+    #and with enough bins following to allow proper lg integration.
+    df = df[baseline_int_window*1000 < df['cfd_trig_rise']] #ensure baseline int window
+    df = df[df['cfd_trig_rise'] < 1000*(df['window_width']-lg)] # ensure lg integration window
 
     #===========================#
     #Time of Flight correlations#
@@ -90,13 +86,43 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="", basel
     shift = int( (Nchannel - Ychannel)/abs(Nchannel-Ychannel) )
     df = get_tof(df, Nchannel, Ychannel, shift)
 
+    #=======================================#
+    #Convolutional neural network prediction#
+    #=======================================#
+    if (model_path):
+        df = cnn_discrim(df, model_path, CNN_window)
+        # #throw away events which don-t have enough bins after cfd trigger to perform cnn discrimination
+        # df=df[df['cfd_trig_rise'] < 1000*(df['window_width']-CNN_window)] # ensure lg integration window
+        # #load the model
+        # model=keras.models.load_model('CNN_model.h5')
+        # #Prepare the model to be run on the GPU (https://github.com/keras-team/keras/issues/6124)
+        # model._make_predict_function()
+        # pre_trig = 20
+        # df['pred'] = np.float32(0)
+        # df['pred'] = df.apply(lambda x: model.predict(x.samples[int(0.5+x.cfd_trig_rise/1000)-pre_trig:int(0.5+x.cfd_trig_rise/1000)+CNN_window-pre_trig].reshape(1,CNN_window,1))[0][0], axis=1, meta=df['pred'])
+
+
+
     with ProgressBar():
         if (outpath):
             #repartition the dataframe into fewer (and larger) blocks
             df = df.repartition(npartitions=df.npartitions // repatition_factor)
             #save to disk
-            print('Dataframe generated: Saving dataframe to disk')
+            print('Processing dataframe and saving to disk')
             df.to_parquet(outpath, engine='pyarrow', compression='snappy')
+    return df
+
+def cnn_discrim(df, model_path, CNN_window):
+    #throw away events which don-t have enough bins after cfd trigger to perform cnn discrimination
+    df=df[df['cfd_trig_rise'] < 1000*(df['window_width']-CNN_window)] # ensure lg integration window
+    #load the model
+    model=keras.models.load_model('CNN_model.h5')
+    #Prepare the model to be run on the GPU (https://github.com/keras-team/keras/issues/6124)
+    model._make_predict_function()
+    pre_trig = 20
+    df['pred'] = np.float32(0)
+    df['pred'] = df.apply(lambda x: model.predict(x.samples[int(0.5+x.cfd_trig_rise/1000)-pre_trig:int(0.5+x.cfd_trig_rise/1000)
+                                                            +CNN_window-pre_trig].reshape(1,CNN_window,1))[0][0], axis=1, meta=df['pred'])
     return df
 
 
