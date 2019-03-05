@@ -1,14 +1,43 @@
 import numpy as np
 import os
-#Dask stuff
+#Pandas
+import pandas as pd
+#Dask
 import dask.dataframe as dd
 from dask.diagnostics import ProgressBar
 #Neural network stuff
 import keras
 
+def load_dataframe(filepath, in_memory=False, mode='standard', engine='pyarrow'):
+    """This function lets you load in a parquet dataframe.
+    \nParameters:
+    \nfilepath: string, path to the parquet file you wish to read.
+    \nin_memory: boolean, determines wether to load into memory with pandas or create a pointer to data on disk using dask
+    \nmode: string, options: \'full\', \'standard\', \'reduced\': \'full\' loads all columns, \'standard\' leaves out only a few columns used for debugging and \'reduced\' leaves out debug columns as well as the memory heavy samples arrays.
+    \nengine: string, name of the parquet library to use for the reading. Default is \'pyarrow\', alternative is \'fastparquet\'"""
+    cols = ['window_width', 'channel', 'event_number', 'timestamp', 'fine_baseline_offset',
+            'amplitude', 'peak_index''qdc_lg', 'qdc_sg', 'ps', 'cfd_trig_rise', 'tof']
+    if mode == 'standard':
+        cols += ['samples']
+        print('reading in standard columns')
+    elif mode == 'full':
+        cols  = None
+        print('reading in standard columns')
+    elif mode == 'reduced':
+        print('reading in reduced dataframe, not containing waveforms')
 
-def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_path="", CNN_window=300,  baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=500, sg=60, blocksize=25*10**6,  repatition_factor=16):
-    """Uses dask to process data on all available logical cores and return a simple dataframe in parquet format
+    if in_memory:
+        print('Reading into memory with pandas')
+        df = pd.read_parquet('data/2019-01-28/15sec.pq', engine='pyarrow', columns=cols)
+    else:
+        print('Preparing pointer to data with dask.')
+        df =dd.read_parquet('data/2019-01-28/15sec.pq', engine=engine, columns=cols)
+    return df
+
+
+
+def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_path="", CNN_window=300,  baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=0, sg=0, blocksize=25*10**6,  repatition_factor=16):
+    """Uses dask to process the txt output of WaveDump on all available logical cores and return a simple dataframe in parquet format
     \nfilepath = Path to file. Use * as a wildcard to read multiple textfile: e.g. file*.txt, will read file1.txt, file2.txt, file3.txt, etc into the same dataframe.
     \nthreshold = Wavedump triggers on all channels when one channel triggers, so to throw away empty events we must reenforce the threshold.
     \nmaxamp = Max amplitude varies with the offset used in the wavedump config file. If a pulse reaches the maxAmp then we want to throw it away as it is likely to have some part cut off.
@@ -44,6 +73,11 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     df['samples'] = df['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=df['samples'])
     df['samples'] = df['samples'].apply(lambda x: x - int(round(np.average(x[0:baseline_int_window]))), meta=df['samples'])
 
+    df['fine_baseline_offset'] = np.int16(0)
+    df['fine_baseline_offset'] =  df.apply(lambda x: int(0.5 + 1000 * np.average( x.samples[0:baseline_int_window] ) ),
+                                         meta=df['fine_baseline_offset'], axis=1)
+
+
     #====================================#
     # Get amplitude and location of peak #
     #====================================#
@@ -69,16 +103,24 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     #Throw away events whose amplitude is below the threshold
     df = df[df['amplitude'] >= threshold]
     #And those whose amplitude is greater than the expected maximum amplitude (likely have their tops cut off)
-    df = df[maxamp > df['amplitude']]
+    df['cutoff'] = False
+    df['cutoff'] = df['cutoff'].where(df['amplitude']<maxamp, True)
+    #df = df[maxamp > df['amplitude']]
     #and those whose baseline jitters too much.
     df['baseline_std'] = np.float64(0)
     df['baseline_std'] = df['samples'].apply(lambda x: np.std(x[0:baseline_int_window]), meta=df['baseline_std'])
-    df = df[df['baseline_std'] < 2]
+    #df = df[df['baseline_std'] < 2]
+    df['wobbly_baseline'] = False
+    df['wobbly_baseline'] = df['wobbly_baseline'].where(df['baseline_std']<2, True)
     #and those where the cfd triggering failed.cfd_trig_rise = -1 implies error. This occurs if the first bin is
     #above the cfd trigger point. We also want to ensure that the cfd trigger happens after the baseline determination
     #and with enough bins following to allow proper lg integration.
-    df = df[baseline_int_window*1000 < df['cfd_trig_rise']] #ensure baseline int window
-    df = df[df['cfd_trig_rise'] < 1000*(df['window_width']-lg)] # ensure lg integration window
+    df['cfd_too_early'] = False
+    df['cfd_too_early'] = df['cfd_too_early'].where(df['cfd_trig_rise']/1000>baseline_int_window, True)
+    #df = df[baseline_int_window*1000 < df['cfd_trig_rise']] #ensure baseline int window
+    df['cfd_too_late_lg'] = False
+    df['cfd_too_late_lg'] = df['cfd_too_late_lg'].where(df['cfd_trig_rise']/1000>(df['window_width'] - lg), True)
+    #df = df[df['cfd_trig_rise'] < 1000*(df['window_width']-lg)] # ensure lg integration window
 
     #===========================#
     #Time of Flight correlations#
@@ -91,17 +133,6 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     #=======================================#
     if (model_path):
         df = cnn_discrim(df, model_path, CNN_window)
-        # #throw away events which don-t have enough bins after cfd trigger to perform cnn discrimination
-        # df=df[df['cfd_trig_rise'] < 1000*(df['window_width']-CNN_window)] # ensure lg integration window
-        # #load the model
-        # model=keras.models.load_model('CNN_model.h5')
-        # #Prepare the model to be run on the GPU (https://github.com/keras-team/keras/issues/6124)
-        # model._make_predict_function()
-        # pre_trig = 20
-        # df['pred'] = np.float32(0)
-        # df['pred'] = df.apply(lambda x: model.predict(x.samples[int(0.5+x.cfd_trig_rise/1000)-pre_trig:int(0.5+x.cfd_trig_rise/1000)+CNN_window-pre_trig].reshape(1,CNN_window,1))[0][0], axis=1, meta=df['pred'])
-
-
 
     with ProgressBar():
         if (outpath):
@@ -114,7 +145,9 @@ def load_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
 
 def cnn_discrim(df, model_path, CNN_window):
     #throw away events which don-t have enough bins after cfd trigger to perform cnn discrimination
-    df=df[df['cfd_trig_rise'] < 1000*(df['window_width']-CNN_window)] # ensure lg integration window
+    df['cfd_too_late_CNN'] = False
+    df['cfd_too_late_CNN'] = df['cfd_too_late_CNN'].where(df['cfd_trig_rise']/1000>(df['window_width'] - CNN_window), True)
+    # ensure lg integration window
     #load the model
     model=keras.models.load_model('CNN_model.h5')
     #Prepare the model to be run on the GPU (https://github.com/keras-team/keras/issues/6124)
@@ -145,13 +178,19 @@ def get_tof(df, Nchannel, Ychannel, shift):
     return df
 
 def pulse_integration(df, lg, sg, lg_baseline_offset, sg_baseline_offset):
+    #Long gate
     df['qdc_lg'] = df['samples'].apply(lambda x:
-                                       lg*lg_baseline_offset + 100*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg])),
+                                       lg*lg_baseline_offset + 1000*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg-10])),
                                        meta=df['samples']).astype(np.int32)
+    df['qdc_lg_fine'] = df['qdc_lg'] + lg*df['fine_baseline_offset']
+    #Short gate
     df['qdc_sg'] = df['samples'].apply(lambda x:
-                                       sg*sg_baseline_offset + 100*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg])),
+                                       sg*sg_baseline_offset + 1000*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg-10])),
                                        meta=df['samples']).astype(np.int32)
+    df['qdc_sg_fine'] = df['qdc_sg'] + sg*df['fine_baseline_offset']
+    #Get the Tail/total ratio
     df['ps'] = (df['qdc_lg']-df['qdc_sg'])/df['qdc_lg']
+    df['ps_fine'] = (df['qdc_lg_fine']-df['qdc_sg_fine'])/df['qdc_lg_fine']
     return df
 
 def get_tof_array(df, Nchannel, Ychannel, i, tol):
