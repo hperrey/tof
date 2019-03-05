@@ -119,7 +119,7 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     df['cfd_too_early'] = df['cfd_too_early'].where(df['cfd_trig_rise']/1000>baseline_int_window, True)
     #df = df[baseline_int_window*1000 < df['cfd_trig_rise']] #ensure baseline int window
     df['cfd_too_late_lg'] = False
-    df['cfd_too_late_lg'] = df['cfd_too_late_lg'].where(df['cfd_trig_rise']/1000>(df['window_width'] - lg), True)
+    df['cfd_too_late_lg'] = df['cfd_too_late_lg'].where(df['cfd_trig_rise']/1000<(df['window_width'] - lg), True)
     #df = df[df['cfd_trig_rise'] < 1000*(df['window_width']-lg)] # ensure lg integration window
 
     #===========================#
