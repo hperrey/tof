@@ -8,7 +8,7 @@ data/*
 *.h5
 *.hdf
 *.hdf5
-
+*.pq
 *.dat
 
 #plots
@@ -17,7 +17,7 @@ data/*
 *.jpg
 *.png
 
-#ToF histograms saved as numpy arrays
+#numpy files
 *.npy
 
 #binary wavedump output
