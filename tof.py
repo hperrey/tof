@@ -13,30 +13,42 @@ def load_dataframe(filepath, in_memory=False, mode='standard', engine='pyarrow')
     \nParameters:
     \nfilepath: string, path to the parquet file you wish to read.
     \nin_memory: boolean, determines wether to load into memory with pandas or create a pointer to data on disk using dask
-    \nmode: string, options: \'full\', \'standard\', \'reduced\': \'full\' loads all columns, \'standard\' leaves out only a few columns used for debugging and \'reduced\' leaves out debug columns as well as the memory heavy samples arrays.
+    \nmode: string, options: \'full\', \'standard\', \'reduced\':
+    \'full\' loads all columns,
+    \'standard\' leaves out only a few columns used for debugging and
+    \'reduced\' leaves out debug columns as well as the memory heavy samples arrays.
     \nengine: string, name of the parquet library to use for the reading. Default is \'pyarrow\', alternative is \'fastparquet\'"""
     cols = ['window_width', 'channel', 'event_number', 'timestamp', 'fine_baseline_offset',
-            'amplitude', 'peak_index''qdc_lg', 'qdc_sg', 'ps', 'cfd_trig_rise', 'tof']
-    if mode == 'standard':
-        cols += ['samples']
-        print('reading in standard columns')
-    elif mode == 'full':
+            'amplitude', 'peak_index''qdc_lg', 'qdc_sg', 'ps', 'cfd_trig_rise', 'tof', 'valid']
+
+    #Select columns to load
+    if mode == 'full':
         cols  = None
+        print('reading in all columns')
+    elif mode == 'standard':
+        cols += ['samples']
         print('reading in standard columns')
     elif mode == 'reduced':
         print('reading in reduced dataframe, not containing waveforms')
 
+    #Load data
     if in_memory:
         print('Reading into memory with pandas')
         df = pd.read_parquet('data/2019-01-28/15sec.pq', engine='pyarrow', columns=cols)
     else:
         print('Preparing pointer to data with dask.')
         df =dd.read_parquet('data/2019-01-28/15sec.pq', engine=engine, columns=cols)
+
+    #Throw away invalid events unless mode 'full' was selected and drop the 'valid' column
+    if mode != 'full':
+        df = df[df['valid']==True]
+        df.drop('valid', axis=1)
+
     return df
 
 
 
-def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_path="", CNN_window=300,  baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=0, sg=0, blocksize=25*10**6,  repatition_factor=16):
+def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_path="", CNN_window=300,  baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=0, sg=0, cleanUp=False, blocksize=25*10**6,  repatition_factor=16):
     """Uses dask to process the txt output of WaveDump on all available logical cores and return a simple dataframe in parquet format
     \nfilepath = Path to file. Use * as a wildcard to read multiple textfile: e.g. file*.txt, will read file1.txt, file2.txt, file3.txt, etc into the same dataframe.
     \nthreshold = Wavedump triggers on all channels when one channel triggers, so to throw away empty events we must reenforce the threshold.
@@ -131,8 +143,17 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     #=======================================#
     #Convolutional neural network prediction#
     #=======================================#
+    df['cfd_too_late_CNN'] = False
     if (model_path):
         df = cnn_discrim(df, model_path, CNN_window)
+
+    #General Goodness parameter
+    df['invalid'] = df['cutoff'] or df['wobbly_baseline'] or df['cfd_too_early'] or df['cfd_too_late_lg'] or df['cfd_too_late_CNN']
+
+    #Throw away or keep bad events? I recommend keeping bad events. They can be useful for debugging, and you can choose
+    #not to load them later by choosing 'mode' in load_data_frame() function.
+    if cleanUp == True:
+        df = df[df['invalid'] == False]
 
     with ProgressBar():
         if (outpath):
@@ -145,7 +166,7 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
 
 def cnn_discrim(df, model_path, CNN_window):
     #throw away events which don-t have enough bins after cfd trigger to perform cnn discrimination
-    df['cfd_too_late_CNN'] = False
+
     df['cfd_too_late_CNN'] = df['cfd_too_late_CNN'].where(df['cfd_trig_rise']/1000>(df['window_width'] - CNN_window), True)
     # ensure lg integration window
     #load the model
@@ -230,7 +251,7 @@ def cfd(row, frac):
     #We want deltaSamples/deltaTime across riseindex and riseindex-1
     slope_rise = (samples[rise_index] - samples[rise_index-1])#divided by deltaT 1ns
 
-    #slope equal 0 is a sign of error. fx a pulse located in first few bins and already above threshold in bin 0.
+    #slope < 0 is a sign of error. fx a pulse located in first few bins and already above threshold in bin 0.
     #it means that the first bin to rise above cfd threshold is equal to the previous bin, which means it is not the first.
     if slope_rise == 0:
         #print('\neventnumber=', row['event_number'],'\nslope == 0!!!!\nindex=', rise_index,'\n', samples[rise_index-5:rise_index+5])
