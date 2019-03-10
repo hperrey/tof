@@ -7,12 +7,12 @@ from dask.diagnostics import ProgressBar
 waveFormLegth=300
 neutrons = dd.read_parquet('data/finalData/PuBe_lead_shielding_5min.pq', engine='pyarrow').query('ps>0.17 and amplitude>40 and 20000<cfd_trig_rise<1000*(1204-%d)'%(waveFormLegth)).reset_index()
 gammas = dd.read_parquet('data/finalData/PuBe_with_plug_5min.pq', engine='pyarrow').query('amplitude>40 and 20000<cfd_trig_rise<1000*(1204-%d)'%(waveFormLegth)).reset_index()
-test = dd.read_parquet('data/finalData/data10min.pq', engine='pyarrow').query('amplitude>40 and 20000<cfd_trig_rise<1000*(1204-%d) and 0<tof<300000'%(waveFormLegth)).reset_index()
+test = dd.read_parquet('data/finalData/data10min_pedestal.pq', engine='pyarrow').query('invalid==Fa and 0<tof<300000 and amplitude>40'%(waveFormLegth)).reset_index()
 
 with  ProgressBar():
-    neutrons.to_parquet('data/finalData/CNN/neutrons.pq', engine='pyarrow', compression='snappy')
+    #neutrons.to_parquet('data/finalData/CNN/neutrons.pq', engine='pyarrow', compression='snappy')
     #gammas.to_parquet('data/finalData/CNN/gammas.pq', engine='pyarrow', compression='snappy')
-    #test.to_parquet('data/finalData/CNN/test.pq', engine='pyarrow', compression='snappy')
+    test.to_parquet('data/finalData/CNN/test.pq', engine='pyarrow', compression='snappy')
 
 
 

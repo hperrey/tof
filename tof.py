@@ -48,7 +48,7 @@ def load_dataframe(filepath, in_memory=False, mode='standard', engine='pyarrow')
 
 
 
-def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_path="", CNN_window=300,  baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=0, sg=0, cleanUp=False, blocksize=25*10**6,  repatition_factor=16):
+def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_path="", CNN_window=300,  baseline_int_window=20, lg_baseline_offset=0, sg_baseline_offset=0, frac=0.3, lg=0, sg=0, cleanUp=False, blocksize=25*10**6, repatition_factor=16):
     """Uses dask to process the txt output of WaveDump on all available logical cores and return a simple dataframe in parquet format
     \nfilepath = Path to file. Use * as a wildcard to read multiple textfile: e.g. file*.txt, will read file1.txt, file2.txt, file3.txt, etc into the same dataframe.
     \nthreshold = Wavedump triggers on all channels when one channel triggers, so to throw away empty events we must reenforce the threshold.
@@ -57,6 +57,7 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     \noutpath = The path where the resulting dataframe is stored.
     \nbaseline_integration_window =20 integer number of bins used in baseline determination.
     \nlg/sg_baseline_offset = the baseline offset we use when integrating pulses, in order to compensate for underflow, and in order to rotate or linearize psd spectrum.
+    \ncleanUp: Boolean, wether to write events that \'failed\' for verious reason (cfd trig fail or wobbly baseline). These events will be a small fraction, provided a reasonable threshold was applied. By default this parameter is false since they can be filter out using query(\'invalid==False\'), and are useful for debugging and only take up a little space.
     \nfrac=0.3 = the fraction of peak amplitude used in the cfd algorithm.
     \nlg=200 = the width of the longgate integration window in nanoseconds,
     \nsg=22 = width of the shortgate integration window in nanoseconds,
@@ -109,10 +110,11 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     df['cfd_trig_rise'] = np.int32(0)
     df['cfd_trig_rise'] = df.apply(lambda x: cfd(x, frac=0.3), meta=df['cfd_trig_rise'], axis=1)
 
-    #=======================#
-    # Throw away bad events #
-    #=======================#
+    #===================#
+    # Handle bad events #
+    #===================#
     #Throw away events whose amplitude is below the threshold
+    #df = df[df['amplitude'] >= ch_thr_mask[df['channel']]]
     df = df[df['amplitude'] >= threshold]
     #And those whose amplitude is greater than the expected maximum amplitude (likely have their tops cut off)
     df['cutoff'] = False
@@ -148,7 +150,7 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
         df = cnn_discrim(df, model_path, CNN_window)
 
     #General Goodness parameter
-    df['invalid'] = df['cutoff'] or df['wobbly_baseline'] or df['cfd_too_early'] or df['cfd_too_late_lg'] or df['cfd_too_late_CNN']
+    df['invalid'] = df['cutoff'] | df['wobbly_baseline'] | df['cfd_too_early'] | df['cfd_too_late_lg'] | df['cfd_too_late_CNN']
 
     #Throw away or keep bad events? I recommend keeping bad events. They can be useful for debugging, and you can choose
     #not to load them later by choosing 'mode' in load_data_frame() function.
@@ -174,7 +176,7 @@ def cnn_discrim(df, model_path, CNN_window):
     #Prepare the model to be run on the GPU (https://github.com/keras-team/keras/issues/6124)
     model._make_predict_function()
     pre_trig = 20
-    df['pred'] = np.float32(0)
+    df['pred'] = np.float32(-99)
     df['pred'] = df.apply(lambda x: model.predict(x.samples[int(0.5+x.cfd_trig_rise/1000)-pre_trig:int(0.5+x.cfd_trig_rise/1000)
                                                             +CNN_window-pre_trig].reshape(1,CNN_window,1))[0][0], axis=1, meta=df['pred'])
     return df

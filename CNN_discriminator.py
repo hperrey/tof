@@ -56,13 +56,13 @@ x_test=x_test.reshape(len(x_test), window_width, 1)
 
 #model definition
 model = Sequential()
-model.add(Conv1D(filters=8, kernel_size=5, strides=1, activation='relu', input_shape=(window_width, 1)))
+model.add(Conv1D(filters=8, kernel_size=9, strides=4, activation='relu', input_shape=(window_width, 1)))
 model.add(Dropout(0.08))
-model.add(MaxPooling1D(2, strides=2))
+model.add(MaxPooling1D(4, strides=2))
 
-model.add(Conv1D(filters=8, kernel_size=5, strides=1, activation='relu'))
+model.add(Conv1D(filters=8, kernel_size=9, strides=4, activation='relu'))
 model.add(Dropout(0.08))
-model.add(MaxPooling1D(2, stride=2))
+model.add(MaxPooling1D(4, stride=2))
 
 model.add(Flatten())
 model.add(Dense(1, activation='sigmoid', name='preds'))
@@ -70,7 +70,7 @@ model.add(Dense(1, activation='sigmoid', name='preds'))
 opt = optimizers.Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-model.fit(x_train, y_train, batch_size=1000, epochs=1)#, validation_split=0.1)
+model.fit(x_train, y_train, batch_size=50, epochs=2)#, validation_split=0.1)
 
 predictions = model.predict(x_test)
 df_test['pred']=predictions
@@ -106,7 +106,7 @@ plt.ylabel('CNN prediction')
 plt.show()
 
 
-dummy=df_test.query('0<=ps<1')
+dummy=df_test.query('-0.4<=ps<1')
 H = sns.JointGrid(dummy.ps, dummy.pred)
 H = H.plot_joint(plt.hexbin, cmap='inferno', gridsize=(50,50), norm=mc.LogNorm())
 H.ax_joint.set_xlabel('Tail/total')
