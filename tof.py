@@ -172,13 +172,13 @@ def cnn_discrim(df, model_path, CNN_window):
     df['cfd_too_late_CNN'] = df['cfd_too_late_CNN'].where(df['cfd_trig_rise']/1000>(df['window_width'] - CNN_window), True)
     # ensure lg integration window
     #load the model
-    model=keras.models.load_model('CNN_model.h5')
+    model=keras.models.load_model('%s'%model_path)
     #Prepare the model to be run on the GPU (https://github.com/keras-team/keras/issues/6124)
     model._make_predict_function()
-    pre_trig = 20
+    pre_trig = 10
     df['pred'] = np.float32(-99)
     df['pred'] = df.apply(lambda x: model.predict(x.samples[int(0.5+x.cfd_trig_rise/1000)-pre_trig:int(0.5+x.cfd_trig_rise/1000)
-                                                            +CNN_window-pre_trig].reshape(1,CNN_window,1))[0][0], axis=1, meta=df['pred'])
+                                                            +CNN_window-pre_trig].reshape(1,CNN_window,1).astype(np.float64)/x.amplitude)[0][0], axis=1, meta=df['pred'])
     return df
 
 

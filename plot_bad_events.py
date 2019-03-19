@@ -41,16 +41,20 @@ titlelist = ['(A) Unstable baseline: %s%% events'%round(L_wob/L*100, 2),
 
 plt.figure(figsize=(8,12))
 fig = plt.gcf()
-fig.suptitle("Examples of rejected events: Of %s events %s%% were rejected"%(L_inv, round(100*L_inv/L, 2)), fontsize=16)
+fig.suptitle("Examples of rejected events: Of %s events %s%% were rejected"%(L, round(100*L_inv/L, 2)), fontsize=16)
 
-for k in range(0,4):
-    ax=plt.subplot(4,1,k+1)
+for k in range(0,5):
+    ax=plt.subplot(5,1,k+1)
     for i in range(0,len(colorlist)):
         plt.plot(dflist[k].samples[i].astype(np.float64)*1000/1023, c=colorlist[i], alpha=0.5)
+        plt.scatter(np.linspace(0, 1203, 1204), dflist[k].samples[i].astype(np.float64)*1000/1023, s=0.7, color=colorlist[i])
     plt.title(titlelist[k], fontsize=12)
     plt.ylabel('mV', fontsize=12)
     plt.xlabel('t(ns)', fontsize=12)
-    plt.ylim(-75, 50)
+    if k==4:
+        plt.ylim(-75, 50)
+    else:
+        plt.ylim(-75, 50)
     ax = plt.gca()
     ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
     if k!=3:

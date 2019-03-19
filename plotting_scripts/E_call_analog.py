@@ -27,7 +27,7 @@ def fit_gaus(left, right, df):
     return popt, pcov
 
 
-p1, p2 = 60, 270
+p1, p2 = 144, 250
 p3, p4 = 925, 1600
 p5, p6 = 2500, 3100
 #p7, p8 = 42000, 45000
@@ -63,6 +63,9 @@ for p in range(p6, p5, -1):
 #         p89_4 = p
 #         break
 #Plotting
+
+plt.figure(figsize=(8,12))
+
 ax1 = plt.subplot(3, 1, 1)
 l1 = minimum; l2 = maximum; b =  int((maximum-minimum)/10); fac = (l2-l1)/b
 plt.hist(N.qdc_det0, bins=b, range=(l1,l2), histtype='step', lw=1, log=True, label='PuBe QDC spectrum', zorder=1)
@@ -77,11 +80,11 @@ x = np.linspace(p1, p2, (p2-p1)*10)
 plt.plot(x, fac*gaus(x, popt_1[0], popt_1[1], popt_1[2]), '.', ms=3, zorder=3)
 #x = np.linspace(p7, p8, (p6-p5)*10)
 #plt.plot(x, fac*gaus(x, popt_4[0], popt_4[1], popt_4[2]), '.', ms=3, zorder=3)
-
 plt.legend()
-plt.xlabel('QDC bin')
-plt.ylabel('Counts')
-
+plt.xlabel('QDC bin', fontsize=12)
+plt.ylabel('Counts', fontsize=12)
+ax = plt.gca()
+ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 
 
 #fit a line through the two known energies
@@ -95,25 +98,30 @@ EeMax2 = 2*E2**2/(0.511+2*E2)
 EeMax3 = 2*E3**2/(0.511+2*E3)
 #EeMax4 = 2*E4**2/(0.511+2*E4)
 Elist = [0, EeMax2, EeMax3]#, EeMax4]
-qdclist = [0, p89_2, p89_3]#, p89_4]
+qdclist = [popt_1[1], p89_2, p89_3]#, p89_4]
 def lin(x, a, b):
     return a*x +b
 popt,pcov = curve_fit(lin, qdclist, Elist, p0=[1, 0])
 x = np.linspace(minimum, p6+500, (maximum-minimum))
 plt.plot(x, lin(x, popt[0], popt[1]), label='Calibration fit')
 plt.legend(frameon=True)
-plt.xlabel('QDC bin')
-plt.ylabel('MeV$_{ee}$')
+plt.xlabel('QDC bin', fontsize=12)
+plt.ylabel('MeV$_{ee}$', fontsize=12)
+ax = plt.gca()
+ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.scatter(qdclist, Elist, marker='+', color='black')
 
 
 #plt.hist(popt[1]+P.qdc_det0*popt[0], bins=1000, range=(0,5), histtype='step', lw=1, label='P')
 ax3=plt.subplot(3, 1, 3)
 plt.hist(popt[1]+N.qdc_det0*popt[0], bins= int((maximum-minimum)/20), range=(0,((popt[1]+ (maximum-minimum)*popt[0]))), histtype='step', log=True, lw=1, label='Calibrated energy spectrum')
-plt.xlabel('MeV$_{ee}$')
-plt.ylabel('Counts')
+plt.xlabel('MeV$_{ee}$', fontsize=12)
+plt.ylabel('Counts', fontsize=12)
+ax = plt.gca()
+ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.legend(frameon=True)
 #plt.xticks(np.arange(0, 8, 1))
+plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/Ecall.pdf', format='pdf')
 plt.show()
 
 

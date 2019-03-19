@@ -11,7 +11,7 @@ import sys
 sys.path.append('../tof')
 
 
-N = pd.read_parquet('../data/finalData/data1hour.pq', engine='pyarrow', columns=['cfd_trig_rise', 'window_width', 'tof', 'channel', 'amplitude', 'qdc_lg_fine', 'qdc_sg_fine', 'ps_fine', 'qdc_lg', 'qdc_sg', 'ps']).query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<920')
+N = pd.read_parquet('../data/finalData/data1hour_clean.pq', engine='pyarrow', columns=['cfd_trig_rise', 'window_width', 'tof', 'channel', 'amplitude', 'qdc_lg_fine', 'qdc_sg_fine', 'ps_fine', 'qdc_lg', 'qdc_sg', 'ps']).query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<920')
 C  = pd.read_parquet('../data/finalData/cobalt60_5min.pq', engine='pyarrow', columns=['cfd_trig_rise', 'window_width', 'channel', 'amplitude', 'qdc_lg_fine', 'qdc_sg_fine', 'ps_fine', 'qdc_lg', 'qdc_sg', 'ps']).query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<920')
 
 #N = d.query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<920')
@@ -68,7 +68,11 @@ for p in range(p6, p5, -1):
 #         #to do add linear interpolation
 #         p89_4 = p
 #         break
+
 #Plotting
+plt.figure(figsize=(8,12))
+
+
 ax1 = plt.subplot(3, 1, 1)
 l1 = minimum; l2 = maximum; b =  int((maximum-minimum)/100); fac = (l2-l1)/b
 plt.hist(N.qdc_lg_fine, bins=b, range=(l1,l2), histtype='step', lw=1, log=True, label='PuBe QDC spectrum', zorder=1)
@@ -85,8 +89,11 @@ plt.plot(x, fac*gaus(x, popt_1[0], popt_1[1], popt_1[2]), '.', ms=3, zorder=3)
 #plt.plot(x, fac*gaus(x, popt_4[0], popt_4[1], popt_4[2]), '.', ms=3, zorder=3)
 
 plt.legend()
-plt.xlabel('QDC bin')
-plt.ylabel('Counts')
+plt.xlabel('QDC bin', fontsize=12)
+plt.ylabel('Counts', fontsize=12)
+ax = plt.gca()
+ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
+
 
 
 
@@ -108,17 +115,23 @@ popt,pcov = curve_fit(lin, qdclist, Elist, p0=[1, 0])
 x = np.linspace(minimum, p6+5000, (maximum-minimum))
 plt.plot(x, lin(x, popt[0], popt[1]), label='Calibration fit')
 plt.legend(frameon=True)
-plt.xlabel('QDC bin')
-plt.ylabel('MeV$_{ee}$')
+plt.xlabel('QDC bin', fontsize=12)
+plt.ylabel('MeV$_{ee}$', fontsize=12)
+ax = plt.gca()
+ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.scatter(qdclist, Elist, marker='+', color='black')
 
 
 #plt.hist(popt[1]+P.qdc_det0*popt[0], bins=1000, range=(0,5), histtype='step', lw=1, label='P')
 ax3=plt.subplot(3, 1, 3)
 plt.hist(popt[1]+N.qdc_lg_fine*popt[0], bins= int((maximum-minimum)/200), range=(0,((popt[1]+ (maximum-minimum)*popt[0]))), histtype='step', log=True, lw=1, label='Calibrated energy spectrum')
-plt.xlabel('MeV$_{ee}$')
-plt.ylabel('Counts')
+plt.xlabel('MeV$_{ee}$', fontsize=12)
+plt.ylabel('Counts', fontsize=12)
+ax = plt.gca()
+ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.legend(frameon=True)
+plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/Ecall.pdf', format='pdf')
+
 #plt.xticks(np.arange(0, 8, 1))
 plt.show()
 

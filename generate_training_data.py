@@ -1,49 +1,28 @@
 import dask.dataframe as dd
 import pandas as pd
 from dask.diagnostics import ProgressBar
-
+import numpy as np
 
 #training set
 waveFormLegth=300
-neutrons = dd.read_parquet('data/finalData/PuBe_lead_shielding_5min.pq', engine='pyarrow').query('ps>0.17 and amplitude>40 and 20000<cfd_trig_rise<1000*(1204-%d)'%(waveFormLegth)).reset_index()
-gammas = dd.read_parquet('data/finalData/PuBe_with_plug_5min.pq', engine='pyarrow').query('amplitude>40 and 20000<cfd_trig_rise<1000*(1204-%d)'%(waveFormLegth)).reset_index()
-test = dd.read_parquet('data/finalData/data10min_pedestal.pq', engine='pyarrow').query('invalid==Fa and 0<tof<300000 and amplitude>40'%(waveFormLegth)).reset_index()
+D = dd.read_parquet('data/finalData/CNN/CNNtrainingdata.pq/', engine='pyarrow').query('invalid==False and amplitude < 617 and channel==0 and amplitude>40 and 20000<cfd_trig_rise<1000*(1204-%d)'%(300))#.reset_index()
+Ecal = np.load('data/finalData/E_call_digi.npy')/1000
+D['E'] = Ecal[1] + Ecal[0]*D['qdc_lg_fine']
+gammas2 = D.query('E>4.2 and ps<0.15 and (tof > 29000 or tof<0)').head(200, npartitions=75, compute=False)#.reset_index()
+gammas2 = gammas2.repartition(npartitions=1)
+D=D.query('(0 < tof < 29000) or (53000< tof < 78000)')
+D['y'] = 1
+D['y'] = D['y'].where((53000<D['tof']) & (D['tof']<78000), 0)
+D1, test = D.random_split([0.75, 0.25])
 
+neutrons = D1.query('(53000< tof < 78000)')
+gammas1 = D1.query('0 < tof < 29000')#.reset_index()
 with  ProgressBar():
+    print("Lazy instructions generated: saving to disk")
     #neutrons.to_parquet('data/finalData/CNN/neutrons.pq', engine='pyarrow', compression='snappy')
-    #gammas.to_parquet('data/finalData/CNN/gammas.pq', engine='pyarrow', compression='snappy')
-    test.to_parquet('data/finalData/CNN/test.pq', engine='pyarrow', compression='snappy')
+    gammas1.to_parquet('data/finalData/CNN/gammas1.pq', engine='pyarrow', compression='snappy')
+    gammas2.to_parquet('data/finalData/CNN/gammas2.pq', engine='pyarrow', compression='snappy')
+    #test.to_parquet('data/finalData/CNN/test.pq', engine='pyarrow', compression='snappy')
+    print("Dataframe saved")
 
-
-
-
-
-
-
-
-
-
-
-
-
-# A=dd.read_parquet('data/2019-02-13/data1hour.parquet/', engine='pyarrow')
-# A = A.query('0<tof<500000')#.reset_index()
-# A = A.repartition(npartitions=A.npartitions // 20)
-# A.to_parquet('data/2019-02-13/All.pq', engine='pyarrow')
-
-# A=pd.read_parquet('data/2019-02-13/All.pq/', engine='pyarrow')
-# A = A.reset_index()
-# L=len(A)
-# L1=int(L*0.75)
-# L2 = int(L*0.25)
-# P1 = A.head(L1)
-# P2 = A.tail(L2)
-# P1.to_parquet('data/2019-02-13/T.pq', engine='pyarrow')
-# P2.to_parquet('data/2019-02-13/V.pq', engine='pyarrow')
-
-
-# # A=dd.read_parquet('data/2019-01-28/30min/frame30min.parquet/', engine='pyarrow')
-# # T=A.query('0<tof<500000')#.reset_index()
-# # T = T.repartition(npartitions=T.npartitions // 20)
-# # T.to_parquet('data/NandYseperated/T.pq', engine='pyarrow')
 
