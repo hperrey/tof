@@ -12,7 +12,9 @@ import tof
 import matplotlib.pyplot as plt
 import seaborn as sns; sns.set()
 import matplotlib.colors as mc
-D=pd.read_parquet('data/finalData/data1hour_clean_dropped_samples_CNNpred.pq/',engine='pyarrow')
+#D=pd.read_parquet('data/finalData/data1hour_clean_dropped_samples_CNNpred.pq/',engine='pyarrow')
+D=pd.read_parquet('data/finalData/CNNtest.pq/',engine='pyarrow')
+
 fsg=3500
 flg=230
 D['ps'] = ((flg*500+D['qdc_lg_fine'])-(fsg*60+D['qdc_sg_fine']))/(flg*500+D['qdc_lg_fine']).astype(np.float64)
@@ -22,15 +24,15 @@ D['tof'] = (D['tof'] - Tshift_D[1])/1000 + 3.3
 
 #Time of Flight V prediction
 d=D.query('0 < tof < 100')
-plt.figure(figsize=(6,6))
-plt.hexbin(d.tof, d.pred, norm=mc.LogNorm(), cmap='viridis')
+plt.figure(figsize=(6,4))
+plt.hexbin(d.tof, d.pred, cmap='viridis')
 ax = plt.gca()
 ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.ylabel('CNN prediction', fontsize=12)
 plt.xlabel('Time of Flight(ns)', fontsize=12)
 plt.title('CNN prediction as a function of time of flight', fontsize=12)
-plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/ToF_CNN_hex.pdf', format='pdf')
 plt.colorbar()
+#plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/ToF_CNN_hex.pdf', format='pdf')
 plt.show()
 #Time of Flight
 d=D.query('0 < tof < 150')
@@ -43,7 +45,7 @@ ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.ylabel('Counts', fontsize=12)
 plt.xlabel('Time of Flight(ns)', fontsize=12)
 plt.title('Time of Flight Spectrum', fontsize=12)
-plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/ToF_filt_CNN.pdf', format='pdf')
+#plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/ToF_filt_CNN.pdf', format='pdf')
 plt.show()
 
 #prediction
@@ -51,14 +53,14 @@ plt.figure(figsize=(6,4))
 Ecal = np.load('data/finalData/E_call_digi.npy')/1000
 D['E'] = Ecal[1] + Ecal[0]*D['qdc_lg_fine']
 d=D.query('E<6')
-plt.hexbin(d.E, d.pred, cmap='viridis')#,  norm=mc.LogNorm())
+plt.hexbin(d.E, d.pred, cmap='viridis')
 ax = plt.gca()
 ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.ylabel('CNN Prediction', fontsize=12)
 plt.xlabel('Energy(MeV$_{ee}$)', fontsize=12)
 plt.title('CNN prediction as a function of deposited energy', fontsize=12)
 plt.colorbar()
-plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/CNN_E.pdf', format='pdf')
+#plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/CNN_E.pdf', format='pdf')
 plt.show()
 
 
@@ -77,6 +79,5 @@ plt.setp(H.ax_marg_y.get_xticklabels(), visible=True)
 plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)  # shrink fig so cbar is visible
 cbar_ax = H.fig.add_axes([0.92, 0.08, .02, 0.7])  # x, y, width, height
 plt.colorbar(cax=cbar_ax)
-#plt.title('CNN prediction as a function of Tail/total ratio', fontsize=16)
-plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/tailTotal_vs_cnnPred.pdf', format='pdf')
+#plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/tailTotal_vs_cnnPred.pdf', format='pdf')
 plt.show()

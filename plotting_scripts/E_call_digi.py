@@ -99,7 +99,7 @@ ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 
 #fit a line through the two known energies
 ax2=plt.subplot(3, 1, 2)
-E1 = 1.17
+E1 = (1.17+1.33)/2
 E2 = 2.23
 E3 = 4.44
 #E4 = 6.128
@@ -112,8 +112,9 @@ qdclist = [0, p89_1, p89_2, p89_3]#, p89_4]
 def lin(x, a, b):
     return a*x +b
 popt,pcov = curve_fit(lin, qdclist, Elist, p0=[1, 0])
+dev = np.sqrt(np.diag(pcov))
 x = np.linspace(minimum, p6+5000, (maximum-minimum))
-plt.plot(x, lin(x, popt[0], popt[1]), label='Calibration fit')
+plt.plot(x, lin(x, popt[0], popt[1]), label='f(x) = ax+b\n$\sigma_a$ = %s  $MeV_{ee}/QDCbin$\n$\sigma_b$ = %s $MeV_{ee}$'%(round(dev[0],8), round(dev[1], 3)))
 plt.legend(frameon=True)
 plt.xlabel('QDC bin', fontsize=12)
 plt.ylabel('MeV$_{ee}$', fontsize=12)

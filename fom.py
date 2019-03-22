@@ -16,8 +16,8 @@ from scipy.signal import convolve
 import math
 
 
-#N=pd.read_parquet('data/finalData/data1hour_pedestal.pq/', engine='pyarrow', columns=['qdc_lg_fine', 'qdc_sg_fine', 'amplitude','invalid', 'channel']).query('channel==0 and invalid==False and amplitude>40').reset_index().head(1000000)
-N=pta.load_data('data/finalData/Data1793_cooked.root').head(1000000)
+N=pd.read_parquet('data/finalData/data1hour_pedestal.pq/', engine='pyarrow', columns=['qdc_lg_fine', 'qdc_sg_fine', 'amplitude','invalid', 'channel']).query('channel==0 and invalid==False and amplitude>40').reset_index().head(1000000)
+#N=pta.load_data('data/finalData/Data1793_cooked.root').head(1000000)
 if 'qdc_det0' in N:
     flg=0
     fsg=1.7
