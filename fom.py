@@ -41,22 +41,21 @@ else:
 
 def gaus(x, a, x0, sigma):
     return a*exp(-(x-x0)**2/(2*sigma**2))
-def fit_gaus(left, right, x0, sigma, df):
-    x = np.linspace(left,right,right-left)
-    H = np.histogram(df.ps_new, range=(left/100, right/100), bins=(right -left))
-    y = H[0]
-    print(max(y))
-    popt,pcov = curve_fit(gaus, x/100, y, p0=[max(y), x0/100, sigma/100])
-    return popt, pcov
-
-kernel = [0]*7
+# def fit_gaus(H,x, sigma):
+#     x = np.linspace(0.005,0.995,100)#H[1][1:] - (H[1][1] - H[1][0])/2
+#     y = H#[0]
+#     print(max(y))
+#     popt,pcov = curve_fit(gaus, x, y, p0=[max(y), x0, sigma/100])
+#     return popt, pcov
+k=70
+kernel = [0]*70
 a, x0, sigma = 1, 4, 1
-for i in range(0,7):
+for i in range(0,70):
     kernel[i]=gaus(i+1, a, x0, sigma)
 kernel=np.array(kernel)
 kernel=kernel/sum(kernel)
 
-bins=100
+bins=1000
 H=np.histogram(dummy['ps_new'], bins=bins, range=(0,1))
 G=convolve(H[0], kernel, method='direct', mode='same')
 #G=G/max(G)
@@ -85,15 +84,34 @@ plt.axvline(Plist[0]/bins, lw=1.2, alpha=0.7, color='black')
 plt.axvline(Plist[1]/bins, lw=1.2, alpha=0.7, color='black')
 plt.axvline(Vlist[0]/bins, label='extreme points', lw=1.2, alpha=0.7, color='black')
 
+
+
+# def fit_gaus(H,x, sigma):
+#     x = np.linspace(0.005,0.995,100)#H[1][1:] - (H[1][1] - H[1][0])/2
+#     y = H#[0]
+#     print(max(y))
+#     popt,pcov = curve_fit(gaus, x, y, p0=[max(y), x0, sigma/100])
+#     return popt, pcov
+
+
 #fit gaussian
-P1, C1 = fit_gaus(left=0, right=Vlist[0], x0=Plist[0], sigma=0.5, df=dummy)
-P2, C1 = fit_gaus(left=Vlist[0], right=100, x0=Plist[1], sigma=0.5, df=dummy)
-x=np.linspace(0,(bins-1)/bins,bins*10)
+left, right, x0 =int(0.5+ Plist[0]/2), Plist[0]+int(0.5+(Vlist[0]-Plist[0])/2), Plist[0]
+x = H[1][left: right] -(H[1][1] - H[1][0])/2
+Gdummy = G[left:right]
+P1, C1 =  curve_fit(gaus, x, Gdummy, p0=[max(G), x0, 30])
+#fit_gaus(H=G, sigma=2)
+
+left, right, x0 = Vlist[0], 1000, Plist[1]
+x = H[1][left: right] -(H[1][1] - H[1][0])/2
+Gdummy = G[left:right]
+P2, C2 =  curve_fit(gaus, x, Gdummy, p0=[max(G), x0, 30])
+#fit_gaus(H=G, sigma=2)
 
 fwhm1 = 2*math.sqrt(2*math.log(2))*P1[2]
 fwhm2 = 2*math.sqrt(2*math.log(2))*P2[2]
 FoM= (P2[1]-P1[1])/(fwhm1+fwhm2)
 print(FoM)
+x = np.linspace(0.0005,0.9995,1000)
 plt.plot(x, gaus(x, P1[0], P1[1], P1[2]), '.', ms=3, label='FWHM = %s'%round(fwhm1, 2))
 plt.plot(x, gaus(x, P2[0], P2[1], P2[2]), '.', ms=3, label='FWHM = %s'%round(fwhm2, 2))
 plt.title('FoM = %s, lgoffset = %s, sg-offset = %s'%(round(FoM, 2), flg, fsg), fontsize=12)

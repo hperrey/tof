@@ -48,23 +48,24 @@ for i in range(0, npeaks):
     print(i)
     popt[i], pcov[i] = fit_gaus(p_l[i], p_r[i], N)
 
-plt.figure(figsize=(9,12.5))
+plt.figure(figsize=(6.2,5))
 fac=1
-for i in range(0, npeaks):
-    ax = plt.subplot(4,3,i+1)
-    x = np.linspace(p_l[i], p_r[i], (p_r[i]-p_l[i])*10)
-    plt.plot(x, fac*gaus(x, popt[i][0], popt[i][1], popt[i][2]), '.', ms=6, zorder=4, label="delay\n%s ns"%delays[i])
-    plt.hist(N.tdc_det0_yap0, range(p_l[i]-20, p_r[i]+20), log=True)
-    plt.legend(loc='upper left')
-    plt.ylim(0,5000)
-    ax = plt.gca()
-    ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
-ax = plt.subplot(2,2,3)
+# for i in range(0, npeaks):
+#     ax = plt.subplot(6,3,i+1+6)
+#     x = np.linspace(p_l[i], p_r[i], (p_r[i]-p_l[i])*10)
+#     plt.plot(x, fac*gaus(x, popt[i][0], popt[i][1], popt[i][2]), '.', ms=6, zorder=4, label="delay\n%s ns"%delays[i])
+#     plt.hist(N.tdc_det0_yap0, range(p_l[i]-20, p_r[i]+20))
+#     plt.legend(loc='upper left')
+#     plt.ylim(0,2000)
+#     ax = plt.gca()
+#     ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
+
+ax = plt.subplot(2,1,1)
 x = np.linspace(100, 699, 600)
-plt.hist(N.tdc_det0_yap0, range(100, 699), log=True, label='TDC spectrum')
+plt.hist(N.tdc_det0_yap0, range(100, 699), label='TDC spectrum')
 plt.legend(loc='upper left')
-plt.ylim(0,5000)
-plt.xlabel('TDC_bin', fontsize=12)
+plt.ylim(0,2000)
+plt.xlabel('TDC channel', fontsize=12)
 ax = plt.gca()
 ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 
@@ -76,16 +77,17 @@ def lin(x, a, b):
     return a*x +b
 lin_popt, lin_pcov = curve_fit(lin, tdc_bins, delays, p0=[-0.3, 500])
 
-ax = plt.subplot(2,2,4)
+ax = plt.subplot(2,1,2)
 plt.scatter(tdc_bins, delays)
 x = np.linspace(100, 699, 600)
 
-plt.plot(x, lin(x, lin_popt[0], lin_popt[1]), label='fit: %s$\cdot$x + %s'%(round(lin_popt[0], 2), round(lin_popt[1], 2) ) )
-plt.xlabel('TDC_bin', fontsize=12)
+plt.plot(x, lin(x, lin_popt[0], lin_popt[1]), label='fit: f(x) = %s$\dfrac{ns}{channel}\cdot$x + %s$ns$'%(round(lin_popt[0], 2), round(lin_popt[1], 2) ) )
+plt.xlabel('TDC channel', fontsize=12)
 plt.ylabel('delay(ns)', fontsize=12)
 ax = plt.gca()
 ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.legend()
-plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/AnalogSetup/Tcal.pdf', format='pdf')
+plt.tight_layout()
+#plt.subplots_adjust(wspace=0.2, hspace=0.8)
 plt.show()
 

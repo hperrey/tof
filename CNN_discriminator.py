@@ -61,6 +61,7 @@ x_test=x_test.reshape(len(x_test), window_width, 1)
 y_test = df_test.y
 #model definition
 model = Sequential()
+model.add(Dropout(0.05))
 model.add(Conv1D(filters=30, kernel_size=7, strides=3, activation='relu', input_shape=(window_width, 1)))
 model.add(Dropout(0.1))
 model.add(MaxPooling1D(2, strides=2))
@@ -69,18 +70,17 @@ model.add(Conv1D(filters=24, kernel_size=7, strides=3, activation='relu'))
 model.add(Dropout(0.1))
 model.add(MaxPooling1D(2, stride=2))
 
-model.add(Conv1D(filters=18, kernel_size=5, strides=2, activation='relu'))
-model.add(Dropout(0.1))
-model.add(MaxPooling1D(2, stride=2))
+# model.add(Conv1D(filters=18, kernel_size=5, strides=2, activation='relu'))
+# model.add(Dropout(0.1))
+# model.add(MaxPooling1D(2, stride=2))
 
-model.add(Flatten())
-#model.add(Dense(48, activation='relu', name='params'))
-#model.add(Dropout(0.2))
+model.add(Flatten(name='flat'))
+#model.add(Dropout(0.05))
 model.add(Dense(1, activation='sigmoid', name='preds'))
 
 opt = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
-epochs=5000
+epochs=100
 hist = model.fit(x_train, y_train, batch_size=50, epochs=epochs, validation_data=(x_test, y_test), verbose=2)#, callbacks=[EarlyStopping])
 print(hist.history)
 
@@ -91,7 +91,7 @@ df_test1 = df_test.query('pred>=0.5')
 
 
 
-# int_layer_model = Model(inputs=model.input, outputs=model.get_layer('params').output)
+# int_layer_model = Model(inputs=model.input, outputs=model.get_layer('flat').output)
 # params = int_layer_model.predict(x_test).reshape(3, len(df_test))
 # df_test['params0']=params[0]
 # df_test['params1']=params[1]

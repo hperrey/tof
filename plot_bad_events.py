@@ -32,19 +32,19 @@ dflist = [D_wobbly, D_cfd_early, D_cfd_late, D_cfd_fail, D_cutoff]
 #Get similar scales
 for i in range(0, len(dflist)):
     dflist[i] = dflist[i].query('amplitude<75').reset_index()
-titlelist = ['(A) Unstable baseline: %s%% events'%round(L_wob/L*100, 2),
-             '(B) Cfd trigger inside baseline determination window: %s%% events'%round(L_early/L*100, 4),
-             '(C) Cfd trigger inside longgate integration window: %s%% events'%round(L_late/L*100, 2),
-             '(D) Cfd algorithm failed: %s%% events'%round(L_fail/L*100, 5),
-             '(E) Pulse amplitude beyond dynamic range of digitizer: %s%% events'%round(L_cutoff/L*100, 6)]
+titlelist = ['(A) Unstable baseline: %s%%'%round(L_wob/L*100, 2),
+             '(B) Cfd trigger in baseline determination window: %s%%'%round(L_early/L*100, 4),
+             '(C) Cfd trigger in longgate integration window: %s%%'%round(L_late/L*100, 2),
+             '(D) Cfd algorithm failed: %s%%'%round(L_fail/L*100, 5),
+             '(E) Pulse amplitude beyond dynamic range of digitizer: %s%%'%round(L_cutoff/L*100, 6)]
 
 
-plt.figure(figsize=(8,12))
+plt.figure(figsize=(6.2,8))
 fig = plt.gcf()
-fig.suptitle("Examples of rejected events: Of %s events %s%% were rejected"%(L, round(100*L_inv/L, 2)), fontsize=16)
+#fig.suptitle("Examples of rejected events: Of %s events %s%% were rejected"%(L, round(100*L_inv/L, 2)), fontsize=12)
 
-for k in range(0,5):
-    ax=plt.subplot(5,1,k+1)
+for k in range(0,4):
+    ax=plt.subplot(4,1,k+1)
     for i in range(0,len(colorlist)):
         plt.plot(dflist[k].samples[i].astype(np.float64)*1000/1023, c=colorlist[i], alpha=0.5)
         plt.scatter(np.linspace(0, 1203, 1204), dflist[k].samples[i].astype(np.float64)*1000/1023, s=0.7, color=colorlist[i])
@@ -59,5 +59,6 @@ for k in range(0,5):
     ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
     if k!=3:
         ax.axes.get_xaxis().set_visible(False)
+plt.tight_layout()
 plt.savefig('/home/rasmus/Documents/ThesisWork/Thesistex/DigitalSetup/badevents.pdf', format='pdf')
 plt.show()
