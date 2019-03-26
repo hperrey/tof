@@ -48,8 +48,8 @@ def gaus(x, a, x0, sigma):
 #     popt,pcov = curve_fit(gaus, x, y, p0=[max(y), x0, sigma/100])
 #     return popt, pcov
 k=70
-kernel = [0]*70
-a, x0, sigma = 1, 4, 1
+kernel = [0]*71
+a, x0, sigma = 1, 35, 3
 for i in range(0,70):
     kernel[i]=gaus(i+1, a, x0, sigma)
 kernel=np.array(kernel)
@@ -85,26 +85,23 @@ plt.axvline(Plist[1]/bins, lw=1.2, alpha=0.7, color='black')
 plt.axvline(Vlist[0]/bins, label='extreme points', lw=1.2, alpha=0.7, color='black')
 
 
-
-# def fit_gaus(H,x, sigma):
-#     x = np.linspace(0.005,0.995,100)#H[1][1:] - (H[1][1] - H[1][0])/2
-#     y = H#[0]
-#     print(max(y))
-#     popt,pcov = curve_fit(gaus, x, y, p0=[max(y), x0, sigma/100])
-#     return popt, pcov
-
-
 #fit gaussian
-left, right, x0 =int(0.5+ Plist[0]/2), Plist[0]+int(0.5+(Vlist[0]-Plist[0])/2), Plist[0]
+#left, right, x0 =int(0.5+ Plist[0]/2), Plist[0]+int(0.5+(Vlist[0]-Plist[0])/2), Plist[0]
+left, right, x0 =  0, Vlist[0], Plist[0]/1000
 x = H[1][left: right] -(H[1][1] - H[1][0])/2
 Gdummy = G[left:right]
-P1, C1 =  curve_fit(gaus, x, Gdummy, p0=[max(G), x0, 30])
+sigma = 0.2#np.std(Gdummy)
+ymax=max(Gdummy)
+P1, C1 =  curve_fit(gaus, x, Gdummy, p0=[ymax, x0, sigma], bounds=( (ymax-1,x0-0.05, 0), (ymax+1, x0+0.05, 0.5) ))
 #fit_gaus(H=G, sigma=2)
 
-left, right, x0 = Vlist[0], 1000, Plist[1]
-x = H[1][left: right] -(H[1][1] - H[1][0])/2
+left, right, x0 = Vlist[0], 400, Plist[1]/1000
+x = (H[1][left: right] -(H[1][1] - H[1][0])/2)
 Gdummy = G[left:right]
-P2, C2 =  curve_fit(gaus, x, Gdummy, p0=[max(G), x0, 30])
+sigma = 0.5
+ymax=max(Gdummy)
+P2, C2 =  curve_fit(gaus, x, Gdummy, p0=[ymax, x0, sigma], bounds=( (ymax-1,x0-0.05, 0), (ymax+1, x0+0.05, 0.5) ))
+
 #fit_gaus(H=G, sigma=2)
 
 fwhm1 = 2*math.sqrt(2*math.log(2))*P1[2]
@@ -115,7 +112,7 @@ x = np.linspace(0.0005,0.9995,1000)
 plt.plot(x, gaus(x, P1[0], P1[1], P1[2]), '.', ms=3, label='FWHM = %s'%round(fwhm1, 2))
 plt.plot(x, gaus(x, P2[0], P2[1], P2[2]), '.', ms=3, label='FWHM = %s'%round(fwhm2, 2))
 plt.title('FoM = %s, lgoffset = %s, sg-offset = %s'%(round(FoM, 2), flg, fsg), fontsize=12)
-plt.xlim(0,0.6)
+plt.xlim(0,0.4)
 plt.xlabel('Tail/total', fontsize=12)
 plt.ylabel('Counts', fontsize=12)
 plt.legend()
