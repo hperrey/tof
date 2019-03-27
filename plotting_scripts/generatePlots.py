@@ -16,8 +16,8 @@ D = pd.read_parquet('../data/finalData/data1hour_clean_dropped_samples_CNNpred.p
 D['qdc_lg'] = D['qdc_lg_fine']
 D['qdc_sg'] = D['qdc_sg_fine']
 D['ps'] = D['ps_fine']
-fsg=3500
-flg=230
+fsg=25000
+flg=3000
 D['ps'] = ((flg*500+D['qdc_lg_fine'])-(fsg*60+D['qdc_sg_fine']))/(flg*500+D['qdc_lg_fine']).astype(np.float64)
 Dcal=np.load('/home/rasmus/Documents/ThesisWork/code/tof/data/finalData/E_call_digi.npy')
 Tshift_D = np.load('/home/rasmus/Documents/ThesisWork/code/tof/data/finalData/Tshift_D.npy')
@@ -29,7 +29,7 @@ A = pta.load_data('../data/finalData/Data1793_cooked.root')
 A['qdc_lg'] = A['qdc_det0']
 A['qdc_sg'] = A['qdc_sg_det0']
 flg=0
-fsg=1.7
+fsg=2
 A['ps'] = ((flg*500+A.qdc_det0)-(fsg*60+A.qdc_sg_det0))/(flg*500+A.qdc_det0).astype(np.float64)
 Acal=np.load('/home/rasmus/Documents/ThesisWork/code/tof/data/finalData/E_call_analog.npy')
 Tshift_A = np.load('/home/rasmus/Documents/ThesisWork/code/tof/data/finalData/Tshift_A.npy')
@@ -180,17 +180,17 @@ def qdc_hist(df, outpath, bins, window, title):
 tof_hist(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', window=(0,150), fac=1, bins=150, qdc_min=0, tNmax=65, mode="Time of flight spectrum\nDigital setup")
 tof_hist(A, '/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/', window=(0,150), fac=1, bins=150, qdc_min=500, tNmax=50, mode="Time of flight spectrum\nAnalog setup")
 
-# psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', CNN=False, cut=0.17, down=0, up=0.4, qdc_min=0, title="--- Discrimination cut: Digital setup", arrow1=[2, 0.08, 2.5, 0.01], arrow2=[4.2, 0.09, 4.7, 0.01], box=[2, 0.38])
-# psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/',  CNN=True, cut=0.5, down=0, up=1, qdc_min=0, title="--- Discrimination cut: Digital setup", arrow1=[2, 0.25, 2.5, 0.4], arrow2=[4.2, 0.25, 4.7, 0.4], box=[2, 0.7])
-# psd(A, '/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/',  CNN=False, cut=0.27, down=0.1, up=0.5, qdc_min=500, title="--- Discrimination cut: Analog setup", arrow1=[2, 0.2, 2.5, 0.11], arrow2=[4.2, 0.2, 4.7, 0.11], box=[2, 0.48])
+psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', CNN=False, cut=0.141, down=0, up=0.4, qdc_min=0, title="--- Discrimination cut: Digital setup", arrow1=[2, 0.08, 2.5, 0.01], arrow2=[4.2, 0.09, 4.7, 0.01], box=[2, 0.38])
+psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/',  CNN=True, cut=0.5, down=0, up=1, qdc_min=0, title="--- Discrimination cut: Digital setup", arrow1=[2, 0.25, 2.5, 0.4], arrow2=[4.2, 0.25, 4.7, 0.4], box=[2, 0.7])
+psd(A, '/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/',  CNN=False, cut=0.259, down=0.1, up=0.5, qdc_min=500, title="--- Discrimination cut: Analog setup", arrow1=[2, 0.2, 2.5, 0.11], arrow2=[4.2, 0.2, 4.7, 0.11], box=[2, 0.48])
 
-# tof_psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', fac=1, psdown=-0.1, psup=0.5, tofdown=0, tofup=100, qdc_min=0, cut=0.17, title="--- Discrimination cut: Digital setup", txt_xy_gamma=[10, 0.4], txt_xy_neutron=[60, 0.4], arrow_xy_gamma=[4, 0.2], arrow_xy_neutron=[45, 0.3], CNN=False)
-# tof_psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', fac=1, psdown=0, psup=1, tofdown=0, tofup=100, qdc_min=0, cut=0.5, title="--- Discrimination cut: Digital setup", txt_xy_gamma=[10, 0.4], txt_xy_neutron=[60, 0.7], arrow_xy_gamma=[4, 0.2], arrow_xy_neutron=[45, 0.85], CNN=True)
-# tof_psd(A, '/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/', fac=1, psdown=0, psup=1, tofdown=0, tofup=100, qdc_min=500, cut=0.27, title="--- Discrimination cut: Analog setup", txt_xy_gamma=[10, 0.48], txt_xy_neutron=[60, 0.48], arrow_xy_gamma=[4, 0.28], arrow_xy_neutron=[45, 0.38], CNN=False)
+tof_psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', fac=1, psdown=-0.1, psup=0.5, tofdown=0, tofup=100, qdc_min=0, cut=0.141, title="--- Discrimination cut: Digital setup", txt_xy_gamma=[10, 0.4], txt_xy_neutron=[60, 0.4], arrow_xy_gamma=[4, 0.2], arrow_xy_neutron=[45, 0.3], CNN=False)
+tof_psd(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', fac=1, psdown=0, psup=1, tofdown=0, tofup=100, qdc_min=0, cut=0.5, title="--- Discrimination cut: Digital setup", txt_xy_gamma=[10, 0.4], txt_xy_neutron=[60, 0.7], arrow_xy_gamma=[4, 0.2], arrow_xy_neutron=[45, 0.85], CNN=True)
+tof_psd(A, '/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/', fac=1, psdown=0, psup=1, tofdown=0, tofup=100, qdc_min=500, cut=0.259, title="--- Discrimination cut: Analog setup", txt_xy_gamma=[10, 0.48], txt_xy_neutron=[60, 0.48], arrow_xy_gamma=[4, 0.28], arrow_xy_neutron=[45, 0.38], CNN=False)
 
-# tof_hist_filt(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', cut=0.17, window=(0,150), fac=1, bins=150, qdc_min=0, mode="Filtered time of flight spectrum\nCharge comparisson method\nDigital setup", CNN=False)
-# tof_hist_filt(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', cut=0.5, window=(0,150), fac=1, bins=150, qdc_min=0, mode="Filtered time of flight spectrum\nCNN method\nDigital setup", CNN=True)
-# tof_hist_filt(A, '/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/', cut=0.27, window=(0,150), fac=1, bins=150, qdc_min=500, mode="Filtered time of flight spectrum\nCharge comparisson method\nAnalog setup", CNN=False)
+tof_hist_filt(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', cut=0.141, window=(0,150), fac=1, bins=150, qdc_min=0, mode="Filtered time of flight spectrum\nCharge comparisson method\nDigital setup", CNN=False)
+tof_hist_filt(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', cut=0.5, window=(0,150), fac=1, bins=150, qdc_min=0, mode="Filtered time of flight spectrum\nCNN method\nDigital setup", CNN=True)
+tof_hist_filt(A, '/home/rasmus/Documents/ThesisWork/Thesistex/AnalogResults/', cut=0.259, window=(0,150), fac=1, bins=150, qdc_min=500, mode="Filtered time of flight spectrum\nCharge comparisson method\nAnalog setup", CNN=False)
 
 
 # qdc_hist(D, '/home/rasmus/Documents/ThesisWork/Thesistex/DigitalResults/', bins=160, window=(0,16), title="Energy deposition spectrum\nAnalog setup")
