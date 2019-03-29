@@ -11,14 +11,14 @@ import sys
 sys.path.append('../tof')
 
 
-N = pd.read_parquet('../data/finalData/data1hour_clean.pq', engine='pyarrow', columns=['cfd_trig_rise', 'window_width', 'tof', 'channel', 'amplitude', 'qdc_lg_fine', 'qdc_sg_fine', 'ps_fine', 'qdc_lg', 'qdc_sg', 'ps']).query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<614')
-C  = pd.read_parquet('../data/finalData/cobalt60_5min.pq', engine='pyarrow', columns=['cfd_trig_rise', 'window_width', 'channel', 'amplitude', 'qdc_lg_fine', 'qdc_sg_fine', 'ps_fine', 'qdc_lg', 'qdc_sg', 'ps']).query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<920')
+N = pd.read_parquet('../data/finalData/data1hour_pedestal.pq', engine='pyarrow', columns=['cfd_trig_rise', 'window_width', 'tof', 'channel', 'amplitude', 'qdc_lg_fine', 'qdc_sg_fine', 'ps_fine', 'qdc_lg', 'qdc_sg', 'ps']).query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<amplitude<6100')
+
+C  = pd.read_parquet('../data/finalData/specialdata/cobalt60_5min.pq', engine='pyarrow', columns=['cfd_trig_rise', 'window_width', 'channel', 'amplitude', 'qdc_lg_fine', 'qdc_sg_fine', 'ps_fine', 'qdc_lg', 'qdc_sg', 'ps']).query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<6100')
 
 #N = d.query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<920')
 N.qdc_lg_fine = N.qdc_lg_fine/1000
 #C = p.query('channel==0 and 20<cfd_trig_rise/1000<window_width-500 and 40<=amplitude<920')
 C.qdc_lg_fine = C.qdc_lg_fine/1000
-
 
 minimum, maximum = 0, 30000
 
@@ -110,20 +110,33 @@ EeMax1 = 2*E1**2/(0.511+2*E1)
 EeMax2 = 2*E2**2/(0.511+2*E2)
 EeMax3 = 2*E3**2/(0.511+2*E3)
 #EeMax4 = 2*E4**2/(0.511+2*E4)
-Elist = [0, EeMax1, EeMax2, EeMax3]#, EeMax4]
-qdclist = [0, p89_1, p89_2, p89_3]#, p89_4]
+Elist = [EeMax1, EeMax2, EeMax3]
+qdclist = [p89_1, p89_2, p89_3]
 def lin(x, a, b):
     return a*x +b
 popt,pcov = curve_fit(lin, qdclist, Elist, p0=[1, 0])
 dev = np.sqrt(np.diag(pcov))
 x = np.linspace(minimum, maximum, (maximum-minimum))
 plt.plot(x, lin(x, popt[0], popt[1]), label='f(x) = ax+b\n$\sigma_a$ = %s  $MeV_{ee}/QDCbin$\n$\sigma_b$ = %s $MeV_{ee}$'%(round(dev[0],8), round(dev[1], 3)))
+
+
+y  = lin(x, popt[0], popt[1])
+y1 = lin(x, popt[0] + pcov[0,0]**0.5, popt[1] - pcov[1,1]**0.5)
+y2 = lin(x, popt[0] - pcov[0,0]**0.5, popt[1] + pcov[1,1]**0.5)
+
+plt.plot(x, y, 'r-')
+plt.plot(x, y1, 'g--')
+plt.plot(x, y2, 'g--')
+plt.fill_between(x, y1, y2, facecolor="gray", alpha=0.15)
+
+
 plt.legend(frameon=True)
 plt.xlabel('QDC bin', fontsize=12)
 plt.ylabel('MeV$_{ee}$', fontsize=12)
 ax = plt.gca()
 ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
 plt.scatter(qdclist, Elist, marker='+', color='black')
+plt.scatter(p89_3, EeMax3, marker='+', color='red')
 
 
 #plt.hist(popt[1]+P.qdc_det0*popt[0], bins=1000, range=(0,5), histtype='step', lw=1, label='P')

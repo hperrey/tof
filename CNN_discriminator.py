@@ -1,14 +1,4 @@
-# coding: utf-8
-import matplotlib.pyplot as plt
-import matplotlib.colors as mc
-import seaborn as sns
-sns.set()
-import pandas as pd
-import numpy as np
-import dask.dataframe as dd
-from scipy.signal import convolve
 
-np.random.seed(666)
 #Keras stuff
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
@@ -18,13 +8,30 @@ from keras import optimizers
 from keras.models import Model
 from keras.callbacks import EarlyStopping
 from keras.callbacks import ModelCheckpoint
+import keras
+
+from numpy.random import seed
+seed(1)
+from tensorflow import set_random_seed
+set_random_seed(2)
+
+import matplotlib.pyplot as plt
+import matplotlib.colors as mc
+import seaborn as sns
+sns.set()
+import pandas as pd
+import numpy as np
+#import dask.dataframe as dd
+from scipy.signal import convolve
+
+
 
 waveFormLegth=300
 
 #training set
-neutrons = pd.read_parquet('data/finalData/CNN/neutrons.pq', engine='pyarrow').query('55000<tof<75000 and amplitude<614').reset_index()
-gammas1 = pd.read_parquet('data/finalData/CNN/gammas1.pq', engine='pyarrow').query('9000<tof<29000 and amplitude<614').reset_index()
-gammas2 = pd.read_parquet('data/finalData/CNN/gammas2.pq', engine='pyarrow').query('amplitude<614').reset_index()
+neutrons = pd.read_parquet('data/finalData/CNN/neutrons.pq', engine='pyarrow').query('55000<tof<75000 and amplitude<610').reset_index()
+gammas1 = pd.read_parquet('data/finalData/CNN/gammas1.pq', engine='pyarrow').query('16000<tof<30000 and amplitude<610').reset_index()
+#gammas2 = pd.read_parquet('data/finalData/CNN/gammas2.pq', engine='pyarrow').query('amplitude<610').reset_index()
 #gammas=pd.concat([gammas2, gammas1]).reset_index()
 gammas=gammas1
 L=min(len(gammas), len(neutrons))
@@ -36,11 +43,23 @@ df_test = pd.read_parquet('data/finalData/CNN/test.pq', engine='pyarrow').reset_
 #df_test = df_test.compute()
 
 
+# def get_samples_train(df):
+#     S = np.array([None]*df.shape[0])
+#     #S = [0]*len(df)
+#     for i in range(0, len(df)):
+#         p = 50
+#         r = np.random.randint(0,p)
+#         randArr1= np.random.randint(-2,2,r)
+#         randArr2= np.random.randint(-2,2,p-r)
+#         S[i] = df.samples[i][int(0.5 + df.cfd_trig_rise[i]/1000)-20: int(0.5 + df.cfd_trig_rise[i]/1000)+waveFormLegth-p-20].astype(np.float64)#/df.amplitude[i]
+#         R = list(randArr1) + list(S[i])+list(randArr2)
+#         S[i] = np.array(R)
+#     return S
 def get_samples(df):
     S = np.array([None]*df.shape[0])
     #S = [0]*len(df)
     for i in range(0, len(df)):
-        S[i] = df.samples[i][int(0.5 + df.cfd_trig_rise[i]/1000)-10: int(0.5 + df.cfd_trig_rise[i]/1000)+waveFormLegth-10].astype(np.float64)#/df.amplitude[i]
+        S[i] = df.samples[i][int(0.5 + df.cfd_trig_rise[i]/1000)-20: int(0.5 + df.cfd_trig_rise[i]/1000)+waveFormLegth-20].astype(np.float64)#/df.amplitude[i]
     return S
 
 Sn = get_samples(neutrons)
@@ -61,28 +80,32 @@ x_test=x_test.reshape(len(x_test), window_width, 1)
 y_test = df_test.y
 #model definition
 model = Sequential()
-model.add(Dropout(0.05))
-model.add(Conv1D(filters=30, kernel_size=7, strides=3, activation='relu', input_shape=(window_width, 1)))
-model.add(Dropout(0.1))
+#model.add(Dropout(0.05))
+model.add(Conv1D(filters=16, kernel_size=13, strides=7, activation='relu', input_shape=(window_width, 1), padding='same'))
+model.add(Dropout(0.08))
 model.add(MaxPooling1D(2, strides=2))
 
-model.add(Conv1D(filters=24, kernel_size=7, strides=3, activation='relu'))
-model.add(Dropout(0.1))
+model.add(Conv1D(filters=16, kernel_size=13, strides=7, activation='relu'))
+model.add(Dropout(0.08))
 model.add(MaxPooling1D(2, stride=2))
-
-# model.add(Conv1D(filters=18, kernel_size=5, strides=2, activation='relu'))
-# model.add(Dropout(0.1))
-# model.add(MaxPooling1D(2, stride=2))
 
 model.add(Flatten(name='flat'))
 #model.add(Dropout(0.05))
 model.add(Dense(1, activation='sigmoid', name='preds'))
 
-opt = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+opt = optimizers.Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
-epochs=100
-hist = model.fit(x_train, y_train, batch_size=50, epochs=epochs, validation_data=(x_test, y_test), verbose=2)#, callbacks=[EarlyStopping])
+#filepath="CNN_models/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+#checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+#callbacks_list = [checkpoint]
+# Fit the model
+epochs = 500
+hist = model.fit(x_train, y_train, batch_size=50, epochs=epochs, validation_data=(x_test, y_test),verbose=2)#, callbacks=callbacks_list)
 print(hist.history)
+
+#model_path='weights-improvement-37-0.87.hdf5'
+#model=keras.models.load_model('CNN_models/%s'%model_path)
+
 
 predictions = model.predict(x_test)
 df_test['pred'] = predictions

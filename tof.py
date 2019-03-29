@@ -19,7 +19,7 @@ def load_dataframe(filepath, in_memory=False, mode='standard', engine='pyarrow')
     \'reduced\' leaves out debug columns as well as the memory heavy samples arrays.
     \nengine: string, name of the parquet library to use for the reading. Default is \'pyarrow\', alternative is \'fastparquet\'"""
     cols = ['window_width', 'channel', 'event_number', 'timestamp', 'fine_baseline_offset',
-            'amplitude', 'peak_index''qdc_lg', 'qdc_sg', 'ps', 'cfd_trig_rise', 'tof', 'valid']
+            'amplitude', 'peak_index''qdc_lg', 'qdc_sg', 'ps', 'cfd_trig_rise', 'tof', 'invalid', 'pred']
 
     #Select columns to load
     if mode == 'full':
@@ -34,15 +34,15 @@ def load_dataframe(filepath, in_memory=False, mode='standard', engine='pyarrow')
     #Load data
     if in_memory:
         print('Reading into memory with pandas')
-        df = pd.read_parquet('data/2019-01-28/15sec.pq', engine='pyarrow', columns=cols)
+        df = pd.read_parquet(filepath, engine='pyarrow', columns=cols)
     else:
         print('Preparing pointer to data with dask.')
-        df =dd.read_parquet('data/2019-01-28/15sec.pq', engine=engine, columns=cols)
+        df =dd.read_parquet(filepath, engine=engine, columns=cols)
 
     #Throw away invalid events unless mode 'full' was selected and drop the 'valid' column
     if mode != 'full':
-        df = df[df['valid']==True]
-        df.drop('valid', axis=1)
+        df = df[df['invalid']==False]
+        df.drop('invalid', axis=1)
 
     return df
 
@@ -175,10 +175,10 @@ def cnn_discrim(df, model_path, CNN_window):
     model=keras.models.load_model('%s'%model_path)
     #Prepare the model to be run on the GPU (https://github.com/keras-team/keras/issues/6124)
     model._make_predict_function()
-    pre_trig = 10
+    pre_trig = 20
     df['pred'] = np.float32(-99)
     df['pred'] = df.apply(lambda x: model.predict(x.samples[int(0.5+x.cfd_trig_rise/1000)-pre_trig:int(0.5+x.cfd_trig_rise/1000)
-                                                            +CNN_window-pre_trig].reshape(1,CNN_window,1).astype(np.float64)/x.amplitude)[0][0], axis=1, meta=df['pred'])
+                                                            +CNN_window-pre_trig].reshape(1,CNN_window,1).astype(np.float64))[0][0], axis=1, meta=df['pred'])
     return df
 
 
