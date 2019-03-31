@@ -9,16 +9,16 @@ from dask.diagnostics import ProgressBar
 
 
 
-D_wobbly = pd.read_parquet('data/finalData/badevents/D_wobbly.pq', engine='pyarrow').query('amplitude>40 and channel==0').reset_index()
-D_cfd_late = pd.read_parquet('data/finalData/badevents/D_cfd_late.pq', engine='pyarrow').query('amplitude>40 and channel==0').reset_index()
-D_cfd_early = pd.read_parquet('data/finalData/badevents/D_cfd_early.pq', engine='pyarrow').query('amplitude>40 and channel==0').reset_index()
-D_cfd_fail = pd.read_parquet('data/finalData/badevents/D_cfd_fail.pq', engine='pyarrow').query('amplitude>40 and channel==0').reset_index()
-D_cutoff = pd.read_parquet('data/finalData/badevents/D_cutoff.pq', engine='pyarrow').query('amplitude>40 and channel==0').reset_index()
-d = dd.read_parquet('data/finalData/data1hour_pedestal.pq', engine='pyarrow')
-d = d.query('amplitude>40 and channel==0')
+D_wobbly = pd.read_parquet('../data/finalData/badevents/D_wobbly.pq', engine='pyarrow').query('amplitude>50 and channel==0').reset_index()
+D_cfd_late = pd.read_parquet('../data/finalData/badevents/D_cfd_late.pq', engine='pyarrow').query('amplitude>50 and channel==0').reset_index()
+D_cfd_early = pd.read_parquet('../data/finalData/badevents/D_cfd_early.pq', engine='pyarrow').query('amplitude>50 and channel==0').reset_index()
+D_cfd_fail = pd.read_parquet('../data/finalData/badevents/D_cfd_fail.pq', engine='pyarrow').query('amplitude>50 and channel==0').reset_index()
+D_cutoff = pd.read_parquet('../data/finalData/badevents/D_cutoff.pq', engine='pyarrow').query('amplitude>50 and channel==0').reset_index()
+d = dd.read_parquet('../data/finalData/data1hour_pedestal.pq', engine='pyarrow')
+d = d.query('amplitude>50 and channel==0')
 with ProgressBar():
-    L = 2276267#len(d)
-    L_acc = 2186676#len(d.query('invalid==False'))
+    L = len(d)#2276267#
+    L_acc = len(d.query('invalid==False'))#2186676
     L_inv = L-L_acc
     L_wob=len(D_wobbly)
     L_late=len(D_cfd_late)
@@ -47,15 +47,15 @@ for k in range(0,4):
     for i in range(0,len(colorlist)):
         plt.plot(dflist[k].samples[i].astype(np.float64)*1000/1023, c=colorlist[i], alpha=0.5)
         plt.scatter(np.linspace(0, 1203, 1204), dflist[k].samples[i].astype(np.float64)*1000/1023, s=0.7, color=colorlist[i])
-    plt.title(titlelist[k], fontsize=12)
-    plt.ylabel('mV', fontsize=12)
-    plt.xlabel('t(ns)', fontsize=12)
+    plt.title(titlelist[k], fontsize=10)
+    plt.ylabel('mV', fontsize=10)
+    plt.xlabel('t(ns)', fontsize=10)
     if k==4:
         plt.ylim(-75, 50)
     else:
         plt.ylim(-75, 50)
     ax = plt.gca()
-    ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
+    ax.tick_params(axis = 'both', which = 'both', labelsize = 10)
     if k!=3:
         ax.axes.get_xaxis().set_visible(False)
 plt.tight_layout()

@@ -56,8 +56,9 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     \nNchannel, Ychannel = the channel numbers in which neutron and gamma detectors are placed
     \noutpath = The path where the resulting dataframe is stored.
     \nbaseline_integration_window =20 integer number of bins used in baseline determination.
-    \nlg/sg_baseline_offset = the baseline offset we use when integrating pulses, in order to compensate for underflow, and in order to rotate or linearize psd spectrum.
-    \ncleanUp: Boolean, wether to write events that \'failed\' for verious reason (cfd trig fail or wobbly baseline). These events will be a small fraction, provided a reasonable threshold was applied. By default this parameter is false since they can be filter out using query(\'invalid==False\'), and are useful for debugging and only take up a little space.
+    \nlg/sg_baseline_offset = the baseline offset we use when integrating pulses, in order to compensate for underflow, and in order to rotate or linearize psd spectrum
+    \nfine_baseline_offset: The baseline is forced to be an integer. The non integer part is multiplied by 1000 and cast to an int for later use in pulse integration.
+    \ncleanUp: Boolean, wether to write events that \'failed\' for various reason (cfd trig fail or wobbly baseline). These events will be a small fraction, provided a reasonable threshold was applied. By default this parameter is false since they can be filter out using query(\'invalid==False\'), and are useful for debugging and only take up a little space.
     \nfrac=0.3 = the fraction of peak amplitude used in the cfd algorithm.
     \nlg=200 = the width of the longgate integration window in nanoseconds,
     \nsg=22 = width of the shortgate integration window in nanoseconds,
@@ -85,7 +86,7 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     #first convert the string into an integer array. Then subtract the baseline.
     df['samples'] = df['samples'].str.split().apply(lambda x: np.array(x, dtype=np.int16), meta=df['samples'])
     df['samples'] = df['samples'].apply(lambda x: x - int(round(np.average(x[0:baseline_int_window]))), meta=df['samples'])
-
+    #The baseline is forced to be an integer. The non integer part is multiplied by 1000 and cast to an int for later use in pulse integration.
     df['fine_baseline_offset'] = np.int16(0)
     df['fine_baseline_offset'] =  df.apply(lambda x: int(0.5 + 1000 * np.average( x.samples[0:baseline_int_window] ) ),
                                          meta=df['fine_baseline_offset'], axis=1)
@@ -102,7 +103,7 @@ def cook_data(filepath, threshold, maxamp, Nchannel, Ychannel, outpath="",model_
     #====================#
     # offsetting each bin by a certain baseline offset is equivalent to adding the product
     # of the integration window and the baseline offset to the integration.
-    df = pulse_integration(df, lg, sg, lg_baseline_offset, sg_baseline_offset)
+    df = pulse_integration(df, lg, sg)
 
     #=======================#
     # generate cfd triggers #
@@ -200,20 +201,27 @@ def get_tof(df, Nchannel, Ychannel, shift):
 
     return df
 
-def pulse_integration(df, lg, sg, lg_baseline_offset, sg_baseline_offset):
+def pulse_integration(df, lg, sg, pre_trig=25, lg_baseline_offset=0, sg_baseline_offset=0):
+    """lg and sg: gatelengths in nanoseconds
+    \nlg_baseline_offset, sg_baseline_offset: offset values that can be used to linearize the pulseshape parameter
+    \npretrig: number of nanoseconds before cfd trigger to commence pulse integration.
+    \nAdditionally the fine baseline offset parameter will be used. See cook_data function docstring"""
     #Long gate
-    df['qdc_lg'] = df['samples'].apply(lambda x:
-                                       lg*lg_baseline_offset + 1000*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+lg-10])),
-                                       meta=df['samples']).astype(np.int32)
-    df['qdc_lg_fine'] = df['qdc_lg'] + lg*df['fine_baseline_offset']
+    df['qdc_lg'] = np.int32(0)
+    df['qdc_lg_offset'] = lg*(df['fine_baseline_offset'] + lg_baseline_offset)
+    df['qdc_lg'] = df.apply(lambda x: 1000*(-1)*(np.trapz(x['samples'][int(0.5+x['cfd_trig_rise']/1000)-pre_trig:int(0.5+x['cfd_trig_rise']/1000)+lg-pre_trig])),
+                            meta=df['qdc_lg'], axis=1)
+    df['qdc_lg'] = df['qdc_lg'] + df['qdc_lg_offset']
+    df.drop('qdc_lg_offset', axis=1)
     #Short gate
-    df['qdc_sg'] = df['samples'].apply(lambda x:
-                                       sg*sg_baseline_offset + 1000*abs(np.trapz(x[np.argmin(x)-10:np.argmin(x)+sg-10])),
-                                       meta=df['samples']).astype(np.int32)
-    df['qdc_sg_fine'] = df['qdc_sg'] + sg*df['fine_baseline_offset']
+    df['qdc_sg'] = np.int32(0)
+    df['qdc_sg_offset'] = sg*(df['fine_baseline_offset'] + sg_baseline_offset)
+    df['qdc_sg'] = df.apply(lambda x: 1000*(-1)*(np.trapz(x['samples'][int(0.5+x['cfd_trig_rise']/1000)-pre_trig:int(0.5+x['cfd_trig_rise']/1000)+sg-pre_trig])),
+                            meta=df['qdc_sg'], axis=1)
+    df['qdc_sg'] = df['qdc_sg'] + df['qdc_sg_offset']
+    df.drop('qdc_sg_offset', axis=1)
     #Get the Tail/total ratio
     df['ps'] = (df['qdc_lg']-df['qdc_sg'])/df['qdc_lg']
-    df['ps_fine'] = (df['qdc_lg_fine']-df['qdc_sg_fine'])/df['qdc_lg_fine']
     return df
 
 def get_tof_array(df, Nchannel, Ychannel, i, tol):

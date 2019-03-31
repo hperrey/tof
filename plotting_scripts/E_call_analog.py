@@ -12,7 +12,7 @@ sys.path.append('../tof')
 sys.path.append('../../analog_tof')
 import pyTagAnalysis as pta
 
-
+fontsize=10
 N = pta.load_data('../data/finalData/Data1793_cooked.root')
 minimum, maximum = 0, 5000
 
@@ -30,13 +30,10 @@ def fit_gaus(left, right, df):
 p1, p2 = 144, 250
 p3, p4 = 925, 1600
 p5, p6 = 2500, 3100
-#p7, p8 = 42000, 45000
 
 popt_1, pcov_1 = fit_gaus(p1, p2, N)
 popt_2, pcov_2 = fit_gaus(p3, p4, N)
 popt_3, pcov_3 = fit_gaus(p5, p6, N)
-#popt_4, pcov_4 = fit_gaus(p7, p8, N)
-
 
 for p in range(p2, p1, -1):
     ycheck = gaus(p, popt_1[0], popt_1[1], popt_1[2])
@@ -71,21 +68,19 @@ l1 = minimum; l2 = maximum; b =  int((maximum-minimum)/10); fac = (l2-l1)/b
 plt.hist(N.qdc_det0, bins=b, range=(l1,l2), histtype='step', lw=1, log=True, zorder=1)
 
 x = np.linspace(p3, p4, (p4-p3)*1)
-plt.plot(x, fac*gaus(x, popt_2[0], popt_2[1], popt_2[2]), '.', ms=6, zorder=4, label='2.23 MeV')
+plt.plot(x, fac*gaus(x, popt_2[0], popt_2[1], popt_2[2]), ms=6, zorder=4, label='2.23 MeV')
 x = np.linspace(p5, p6, (p6-p5)*1)
-plt.plot(x, fac*gaus(x, popt_3[0], popt_3[1], popt_3[2]), '.', ms=6, zorder=5, label='4.44 MeV')
+plt.plot(x, fac*gaus(x, popt_3[0], popt_3[1], popt_3[2]), ms=6, zorder=5, label='4.44 MeV')
 #plt.scatter([p89_1, p89_2, p89_3], [fac*0.89*popt_1[0], fac*0.89*popt_2[0], fac*0.89*popt_3[0]], s=50, marker='+', color='black', label='89% of peak', zorder=6)
 #plt.hist(C.qdc_det0, bins=b, range=(l1,l2), histtype='step', lw=1, log=True, label='$^{60}$Co QDC spectrum', zorder=2)
 x = np.linspace(p1, p2, (p2-p1)*1)
-plt.plot(x, fac*gaus(x, popt_1[0], popt_1[1], popt_1[2]), '.', ms=6, zorder=3, label='pedestal')
-#x = np.linspace(p7, p8, (p6-p5)*10)
-#plt.plot(x, fac*gaus(x, popt_4[0], popt_4[1], popt_4[2]), '.', ms=3, zorder=3)
+#plt.plot(x, fac*gaus(x, popt_1[0], popt_1[1], popt_1[2]), ms=6, zorder=3, label='pedestal')
 plt.legend(loc='upper right')
-plt.xlabel('QDC bin', fontsize=12)
-plt.ylabel('Counts', fontsize=12)
+plt.xlabel('QDC bin', fontsize=fontsize)
+plt.ylabel('Counts', fontsize=fontsize)
 plt.ylim(0.1, 10**5)
 ax = plt.gca()
-ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
+ax.tick_params(axis = 'both', which = 'both', labelsize = fontsize)
 
 
 #fit a line through the two known energies
@@ -99,7 +94,7 @@ EeMax2 = 2*E2**2/(0.511+2*E2)
 EeMax3 = 2*E3**2/(0.511+2*E3)
 #EeMax4 = 2*E4**2/(0.511+2*E4)
 Elist = [0, EeMax2, EeMax3]#, EeMax4]
-qdclist = [popt_1[1], p89_2, p89_3]#, p89_4]
+qdclist = [67.5, p89_2, p89_3]#, p89_4]
 def lin(x, a, b):
     return a*x +b
 popt,pcov = curve_fit(lin, qdclist, Elist, p0=[1, 0])
@@ -107,21 +102,21 @@ dev = np.sqrt(np.diag(pcov))
 x = np.linspace(minimum, maximum, (maximum-minimum))
 plt.plot(x, lin(x, popt[0], popt[1]), label='f(x) = ax+b\n$\sigma_a$ = %s  $MeV_{ee}/QDCbin$\n$\sigma_b$ = %s $MeV_{ee}$'%(round(dev[0],5), round(dev[1], 2)))
 plt.legend(frameon=True)
-plt.xlabel('QDC bin', fontsize=12)
-plt.ylabel('MeV$_{ee}$', fontsize=12)
+plt.xlabel('QDC bin', fontsize=fontsize)
+plt.ylabel('MeV$_{ee}$', fontsize=fontsize)
 ax = plt.gca()
-ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
+ax.tick_params(axis = 'both', which = 'both', labelsize = fontsize)
 plt.scatter(qdclist, Elist, marker='+', color='black')
 
 
 #plt.hist(popt[1]+P.qdc_det0*popt[0], bins=1000, range=(0,5), histtype='step', lw=1, label='P')
 ax3=plt.subplot(3, 1, 3)
 plt.hist(popt[1]+N.qdc_det0*popt[0], bins= int((maximum-minimum)/20), range=(0,((popt[1]+ (maximum-minimum)*popt[0]))), histtype='step', log=True, lw=1, label='Calibrated energy spectrum')
-plt.xlabel('MeV$_{ee}$', fontsize=12)
-plt.ylabel('Counts', fontsize=12)
+plt.xlabel('MeV$_{ee}$', fontsize=fontsize)
+plt.ylabel('Counts', fontsize=fontsize)
 plt.ylim(0.1, 10**5)
 ax = plt.gca()
-ax.tick_params(axis = 'both', which = 'both', labelsize = 12)
+ax.tick_params(axis = 'both', which = 'both', labelsize = fontsize)
 plt.legend(frameon=True)
 #plt.xticks(np.arange(0, 8, 1))
 plt.tight_layout()
